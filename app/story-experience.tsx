@@ -6,11 +6,11 @@ export type Sticker={id:string;src:string;page:number;x:number;y:number;size:num
 export type Point={x:number;y:number};
 export type Stroke={id:string;page:number;color:string;width:number;points:Point[]};
 export type Decoration={stickers:Sticker[];drawings:Stroke[]};
-export type StoryData={id:string;child_name:string;genre:string;object_name:string;title:string;summary:string;pages:StoryPage[];stickers?:Sticker[];drawings?:Stroke[]};
+export type StoryData={id:string;child_name:string;question?:string;answer?:string;title:string;summary:string;pages:StoryPage[];stickers?:Sticker[];drawings?:Stroke[]};
 const stickerSources=Array.from({length:9},(_,i)=>`/stickers/sticker-${String(i+1).padStart(2,"0")}.png`);
 const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d2940"];
 
-function BookPage({story,page}:{story:StoryData;page:number}){const p=story.pages[page];return <><div className="visual">{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">삽화를 불러오고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article><small>{story.child_name}의 {story.genre} 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p></article></>}
+function BookPage({story,page}:{story:StoryData;page:number}){const p=story.pages[page];return <><div className="visual">{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">삽화를 불러오고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article><small>{story.child_name}의 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p></article></>}
 
 export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:{story:StoryData;onSave:()=>void;onDecorate?:()=>void;isFromGallery?:boolean;initialItems?:{photo:string;name:string;reason:string}[]}){
  const [showCover,setShowCover]=useState(true);

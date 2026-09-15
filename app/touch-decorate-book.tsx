@@ -5,7 +5,7 @@ import type {Decoration,Sticker,StoryData,Stroke} from "./story-experience";
 const stickerSources=Array.from({length:9},(_,i)=>`/stickers/sticker-${String(i+1).padStart(2,"0")}.png`);
 const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d2940"];
 
-function BookPage({story,page}:{story:StoryData;page:number}){const p=story.pages[page];return <><div className="visual">{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">삽화를 불러오고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article><small>{story.child_name}의 {story.genre} 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p></article></>}
+function BookPage({story,page}:{story:StoryData;page:number}){const p=story.pages[page];return <><div className="visual">{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">삽화를 불러오고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article><small>{story.child_name}의 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p></article></>}
 
 export function TouchDecorateBook({story,finish}:{story:StoryData;finish:(d:Decoration)=>Promise<void>}){
  const [page,setPage]=useState(0),[mode,setMode]=useState<"pen"|"sticker">("pen"),[stickers,setStickers]=useState<Sticker[]>(story.stickers||[]),[drawings,setDrawings]=useState<Stroke[]>(story.drawings||[]),[color,setColor]=useState(colors[0]),[width,setWidth]=useState(18),[ghost,setGhost]=useState<{src:string;x:number;y:number}|null>(null),[saving,setSaving]=useState(false),bookRef=useRef<HTMLDivElement>(null),drawing=useRef<Stroke|null>(null),pointers=useRef(new Map<number,{id:string;x:number;y:number}>()),pinch=useRef<{id:string;distance:number;size:number}|null>(null);

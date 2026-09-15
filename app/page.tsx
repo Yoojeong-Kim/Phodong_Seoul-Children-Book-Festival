@@ -2,101 +2,210 @@
 import {ChangeEvent,useRef,useState,useEffect} from "react";
 import {Decoration,ReaderBook,Stroke} from "./story-experience";
 import {TouchDecorateBook} from "./touch-decorate-book";
+
 type Page={page:number;title:string;text:string;image_prompt:string;image_url?:string};
 type Sticker={id:string;src:string;page:number;x:number;y:number;size:number};
-type Story={id:string;child_name:string;genre:string;object_name:string;title:string;summary:string;pages:Page[];stickers?:Sticker[];drawings?:Stroke[];status:string;created_at:number};
-type ItemDraft={photo:string;file:File|null;name:string;reason:string};
-type HeroDraft={name:string;kind:string;styleMode:string;hair:string;texture:string;hairColor:string;outfit:string;outfitColor:string;accessory:string};
-const newItem=():ItemDraft=>({photo:"",file:null,name:"",reason:""});
-const newHero=():HeroDraft=>({name:"",kind:"",styleMode:"",hair:"",texture:"",hairColor:"",outfit:"",outfitColor:"",accessory:""});
-const genres=[["🦕","공룡"],["🧚","요정"],["👑","공주와 왕자"],["🐾","동물"],["🚀","우주"],["🌙","전래동화"]];
-const stickerSources=Array.from({length:9},(_,i)=>`/stickers/sticker-${String(i+1).padStart(2,"0")}.png`);
-const heroOptions=["여자아이","남자아이"],hairOptions=["아주 짧은 머리","귀밑 머리","어깨 머리","긴 머리"],textureOptions=["곧은 머리","웨이브 머리","곱슬 머리"],hairColorOptions=["검은색","짙은 갈색","밝은 갈색"],outfitOptions=["티셔츠와 바지","원피스","멜빵옷","후드와 반바지"],outfitColorOptions=["빨강","노랑","파랑","초록","보라"],accessoryOptions=["안경","모자","머리핀","작은 가방","없음"];
-export default function Home(){
- const [entered,setEntered]=useState(false),[entering,setEntering]=useState(false),[step,setStep]=useState(0),[view,setView]=useState<"make"|"gallery">("make"),[genre,setGenre]=useState(""),[items,setItems]=useState<ItemDraft[]>([newItem()]),[heroes,setHeroes]=useState<HeroDraft[]>([newHero()]),[includePhodong,setIncludePhodong]=useState(false),[story,setStory]=useState<Story|null>(null),[page,setPage]=useState(0),[creating,setCreating]=useState(false),[progress,setProgress]=useState(""),[progressPercent,setProgressPercent]=useState(0),[error,setError]=useState(""),[stories,setStories]=useState<Story[]>([]),[loadingGallery,setLoadingGallery]=useState(false),[isFromGallery,setIsFromGallery]=useState(false);
+type Story={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:Page[];stickers?:Sticker[];drawings?:Stroke[];status:string;created_at:number};
 
- function resetAll(){
-  setEntered(false);setEntering(false);setStep(0);setView("make");setGenre("");
-  setItems([newItem()]);setHeroes([newHero()]);setIncludePhodong(false);
-  setStory(null);setPage(0);setError("");setCreating(false);setProgress("");setProgressPercent(0);
- }
+type CharDraft={
+  photo:string;file:File|null;name:string;
+  role:"child"|"guardian";kind:string;
+  hair:string;hairColor:string;
+};
 
- useEffect(()=>{
-  if(typeof window!=="undefined"){
-   try{
-    sessionStorage.clear();
-    localStorage.clear();
-    if('scrollRestoration' in history)history.scrollRestoration='manual';
-   }catch{}
-   const handlePageShow=(e:PageTransitionEvent)=>{
-    if(e.persisted)resetAll();
-   };
-   window.addEventListener("pageshow",handlePageShow);
-   return ()=>window.removeEventListener("pageshow",handlePageShow);
-  }
- },[]);
- function enter(){if(entering)return;setEntering(true);setTimeout(()=>{setEntered(true);setEntering(false)},850)}
- async function choose(e:ChangeEvent<HTMLInputElement>,index:number){const f=e.target.files?.[0];if(!f)return;setError("");try{const bitmap=await createImageBitmap(f);const max=960,scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext("2d")!.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(v=>v?resolve(v):reject(new Error()),"image/jpeg",.68));const normalized=new File([blob],`phodong-photo-${index+1}.jpg`,{type:"image/jpeg"}),url=URL.createObjectURL(normalized);setItems(v=>v.map((item,i)=>{if(i!==index)return item;if(item.photo)URL.revokeObjectURL(item.photo);return {...item,photo:url,file:normalized}}))}catch{setError("이 사진은 읽기 어려워. 카메라로 다시 찍거나 다른 사진을 골라 줘.")}finally{e.target.value=""}}
- function updateItem(index:number,patch:Partial<ItemDraft>){setItems(v=>v.map((item,i)=>i===index?{...item,...patch}:item))}
- function removeItem(index:number){setItems(v=>{const target=v[index];if(target?.photo)URL.revokeObjectURL(target.photo);return v.filter((_,i)=>i!==index)})}
- function updateHero(index:number,patch:Partial<HeroDraft>){setHeroes(v=>v.map((hero,i)=>i===index?{...hero,...patch}:hero))}
- function assignHero(index:number){const pick=<T,>(arr:T[],offset:number)=>arr[(index+offset)%arr.length];updateHero(index,{styleMode:"auto",hair:pick(hairOptions,0),texture:pick(textureOptions,1),hairColor:pick(hairColorOptions,2),outfit:pick(outfitOptions,3),outfitColor:pick(outfitColorOptions,4),accessory:pick(accessoryOptions,5)})}
- function heroReady(v:HeroDraft){return !!(v.name.trim()&&v.kind&&v.styleMode&&(v.styleMode==="auto"||(v.hair&&v.texture&&v.hairColor&&v.outfit&&v.outfitColor&&v.accessory)))}
- function go(n:number){setView("make");setStep(n);window.scrollTo({top:0,behavior:"smooth"})}
- async function fileData(f:File){return await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(f)})}
- async function readApi(res:Response){const type=res.headers.get("content-type")||"";if(!type.includes("application/json"))throw new Error("포동이가 그림을 저장하고 있어. 잠시만 기다려 줘.");return await res.json()}
- async function makeImage(id:string,page:number){
-  for(let attempt=0;attempt<60;attempt++){
-   try{const res=await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,page})});const data=await readApi(res);if(res.status===202){setProgress(`포동이가 순서를 기다리고 있어 (${page+1}/5)`);await new Promise(resolve=>setTimeout(resolve,6000));continue}if(!res.ok)throw new Error(data.error||"삽화를 만들지 못했어.");return data}
-   catch(e){if(attempt>=2)throw e;setProgress(`포동이가 ${page+1}번째 그림을 정성껏 마무리하고 있어`);await new Promise(resolve=>setTimeout(resolve,20000))}
-  }
-  throw new Error("포동이가 아직 그림 순서를 기다리고 있어. 잠시 후 다시 해 줘.")
- }
- async function createStory(){
-  if(items.some(v=>!v.file||!v.name.trim())||heroes.some(v=>!heroReady(v))||!genre)return;setCreating(true);setError("");setProgressPercent(8);setProgress("사진 속 소중한 물건들을 살펴보고 있어...");
-  try{
-   const photos=await Promise.all(items.map(v=>fileData(v.file!)));
-   const signatures=["빨간 별 배지와 둥근 주머니","파란 달 배지와 줄무늬 양말","노란 꽃 배지와 작은 손목띠"];
-   setProgressPercent(16);setProgress("포동이가 신나는 동화 이야기를 쓰고 있어 ✨");
-   const res=await fetch("/api/stories",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({objects:items.map((v,i)=>({name:v.name.trim(),reason:v.reason.trim(),photo:photos[i]})),characters:heroes.map((v,i)=>({name:v.name.trim(),appearance:`${v.kind}, ${v.hair}, ${v.texture}, ${v.hairColor} 머리, ${v.outfit}, ${v.outfitColor} 계열 옷, 소품: ${v.accessory}, 고유 표식: ${signatures[i]}`})),includePhodong,genre})});
-   const data=await readApi(res);if(!res.ok)throw new Error(data.error||"동화를 만들지 못했어.");let made:Story=data.story;setStory(made);
-   setProgressPercent(25);
-   for(let i=0;i<5;i++){
-    const pct = Math.round(25 + ((i + 0.3) / 5) * 70);
-    setProgressPercent(pct);
-    setProgress(`포동이가 멋진 삽화를 그리고 있어 (${i+1}/5쪽) 🎨`);
-    const idata=await makeImage(made.id,i);
-    made={...made,pages:made.pages.map((p,j)=>j===i?{...p,image_url:idata.image_url}:p)};
-    setStory(made);
-    setProgressPercent(Math.round(25 + ((i + 1) / 5) * 70));
-    if(i<4)await new Promise(resolve=>setTimeout(resolve,2000))
-   }
-   setProgressPercent(100);
-   setProgress("동화책 완성! 짜잔~ 📖");
-   await new Promise(resolve=>setTimeout(resolve,600));
-   made={...made,status:"complete"};setStory(made);setPage(0);setIsFromGallery(false);go(4);
-  }catch(e){setError(e instanceof Error?e.message:"잠시 후 다시 시도해 줘.")}finally{setCreating(false)}
- }
- async function openGallery(){setEntered(true);setView("gallery");setLoadingGallery(true);setError("");try{const r=await fetch("/api/stories");const d=await readApi(r);if(!r.ok)throw new Error(d.error);setStories(d.stories||[])}catch(e){setError(e instanceof Error?e.message:"동화를 불러오지 못했어.")}finally{setLoadingGallery(false)}}
- async function deleteStory(id:string){if(!window.confirm("이 동화를 책장에서 지울까?"))return;try{const r=await fetch(`/api/stories?id=${encodeURIComponent(id)}`,{method:"DELETE"});const d=await readApi(r);if(!r.ok)throw new Error(d.error||"동화를 지우지 못했어.");setStories(v=>v.filter(s=>s.id!==id))}catch(e){setError(e instanceof Error?e.message:"동화를 지우지 못했어.")}}
- function handleSaveStory(){alert("동화책장에 소중히 저장되었어! 📚\n언제든지 '친구들의 동화'에서 다시 읽고 예쁘게 꾸밀 수 있어.");resetAll();}
- async function keepStory(decoration:Decoration){if(story){const res=await fetch("/api/stories",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:story.id,...decoration})});if(!res.ok){setError("꾸민 내용을 저장하지 못했어. 한 번만 다시 눌러 줘.");return}}setStory(null);setPage(0);await openGallery();window.scrollTo({top:0,behavior:"smooth"})}
- function openStory(s:Story){setStory(s);setPage(0);setIsFromGallery(true);setView("make");setStep(4)}
- if(!entered)return <main className={`entrance ${entering?"leaving":""}`}><button className="entrance-stage" onClick={enter} aria-label="포동 이야기 놀이터 들어가기"><span className="orb"><img src="/phodong-mascot.png" alt=""/><i/><b className="sp a">✦</b><b className="sp b">✦</b></span></button><style>{css}</style></main>;
- return <main className="inside"><header><button className="logo" onClick={resetAll}><img src="/phodong-logo.png" alt="포동"/></button>{view==="make"&&<div className="progress">{[0,1,2,3,4,5].map(i=><i key={i} className={i<=step?"on":""}/>)}</div>}<button className="home" onClick={view==="gallery"?()=>go(0):openGallery}>{view==="gallery"?"이야기 만들기":"친구들의 동화"}</button></header>
-  {view==="gallery"?<Gallery stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory}/>:<>
-  {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 나는 포동이야!</small><h1 className="sentence-reveal">소중한 물건으로<br/>세상에 하나뿐인 동화를 만들어 볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
-  {step===1&&<section className="screen multi-step photo-step"><Title over="이야기의 씨앗 🌱" title="소중한 물건 사진을 올려 줘" sub="1개부터 3개까지 올릴 수 있어"/><div className="item-grid">{items.map((item,i)=><article className="item-card" key={i}><div className={`mini-drop ${item.photo?"filled":""}`}>{item.photo?<img src={item.photo} alt={`${i+1}번째 물건`}/>:<div><span>📷</span><strong>{i+1}번째 물건</strong></div>}<input id={`camera-${i}`} type="file" accept="image/*" capture="environment" autoComplete="off" onChange={e=>choose(e,i)}/><input id={`library-${i}`} type="file" accept="image/*" autoComplete="off" onChange={e=>choose(e,i)}/><div><label htmlFor={`camera-${i}`}>📸 직접 찍기</label><label htmlFor={`library-${i}`}>🖼 앨범에서</label></div></div><label>물건 이름 <em>필수</em><input value={item.name} maxLength={40} autoComplete="off" spellCheck={false} onChange={e=>updateItem(i,{name:e.target.value})} placeholder="예: 할머니가 주신 인형"/></label><label>왜 특별해? <span>선택</span><textarea value={item.reason} maxLength={200} autoComplete="off" spellCheck={false} onChange={e=>updateItem(i,{reason:e.target.value})} placeholder="예: 멀리 계신 할머니가 보내 주셨어."/></label>{items.length>1&&<button className="remove-card" onClick={()=>removeItem(i)}>✕ 빼기</button>}</article>)}</div>{items.length<3&&<button className="add-card" onClick={()=>setItems(v=>[...v,newItem()])}>＋ 물건 추가</button>}{error&&<p className="error">{error}</p>}<Actions back={()=>go(0)} next={()=>go(2)} disabled={items.some(v=>!v.file||!v.name.trim())} label="주인공 고르기 →"/></section>}
-  {step===2&&<section className="screen multi-step hero-step"><Title over="누가 모험을 떠날까? 🧒" title="주인공을 만들어 보자" sub="1명부터 3명까지 추가할 수 있어"/><div className="hero-grid">{heroes.map((hero,i)=><article className="hero-card" key={i}><h3>주인공 {i+1}</h3><label>이름 <em>필수</em><input value={hero.name} maxLength={20} autoComplete="off" spellCheck={false} onChange={e=>updateHero(i,{name:e.target.value})} placeholder="예: 지우"/></label><OptionRow title="성별" values={heroOptions} value={hero.kind} pick={kind=>updateHero(i,{kind,styleMode:"",hair:"",texture:"",hairColor:"",outfit:"",outfitColor:"",accessory:""})}/>{hero.kind&&<div className="style-choice"><button type="button" className={hero.styleMode==="custom"?"picked":""} onClick={()=>updateHero(i,{styleMode:"custom"})}>✏️ 직접 고를래!</button><button type="button" className={hero.styleMode==="auto"?"picked":""} onClick={()=>assignHero(i)}>🎲 포동이가 골라줘!</button></div>}{hero.styleMode==="custom"&&<><OptionRow title="머리 길이" values={hairOptions} value={hero.hair} pick={hair=>updateHero(i,{hair})}/><OptionRow title="머리 모양" values={textureOptions} value={hero.texture} pick={texture=>updateHero(i,{texture})}/><OptionRow title="머리 색" values={hairColorOptions} value={hero.hairColor} pick={hairColor=>updateHero(i,{hairColor})}/><OptionRow title="옷차림" values={outfitOptions} value={hero.outfit} pick={outfit=>updateHero(i,{outfit})}/><OptionRow title="옷 색" values={outfitColorOptions} value={hero.outfitColor} pick={outfitColor=>updateHero(i,{outfitColor})}/><OptionRow title="소품" values={accessoryOptions} value={hero.accessory} pick={accessory=>updateHero(i,{accessory})}/></>}{heroes.length>1&&<button className="remove-card" onClick={()=>setHeroes(v=>v.filter((_,j)=>j!==i))}>✕ 빼기</button>}</article>)}</div>{heroes.length<3&&<button className="add-card" onClick={()=>setHeroes(v=>[...v,newHero()])}>＋ 주인공 추가</button>}<label className="phodong-choice"><input type="checkbox" checked={includePhodong} onChange={e=>setIncludePhodong(e.target.checked)}/><span><b>🐾 포동이도 함께!</b><small>이야기와 그림에 포동이가 등장해.</small></span></label><Actions back={()=>go(1)} next={()=>go(3)} disabled={heroes.some(v=>!heroReady(v))} label="장르 고르기 →"/></section>}
- {step===3&&<section className="screen guided guide-left prepare"><div className="guide"><img className="phodong-enter" src="/phodong-explorer.png" alt="탐험가 포동"/></div><div className="stage-content"><Title over="마지막 단계! 🗺" title="어떤 이야기 속으로 갈까?" sub="장르를 하나만 골라 줘"/><div className="choices genre-choices">{genres.map(([icon,label])=><button key={label} className={genre===label?"picked":""} onClick={()=>setGenre(label)}><b>{icon}</b><span>{label}</span><i>✓</i></button>)}</div>{error&&<p className="error">{error}</p>}<Actions back={()=>go(2)} next={createStory} disabled={!genre} label="동화 만들어 줘! ✨"/></div></section>}
- {step===4&&story&&<ReaderBook story={story} isFromGallery={isFromGallery} onSave={handleSaveStory} onDecorate={()=>go(5)} initialItems={items}/>} {step===5&&story&&<TouchDecorateBook story={story} finish={keepStory}/>}</>}
- {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}<style>{css}</style></main>
+const hairOptions=["아주 짧은 머리","귀밑 머리","어깨 머리","긴 머리"];
+const hairColorOptions=["검은색","짙은 갈색","밝은 갈색"];
+const childKindOptions=["여자아이","남자아이"];
+const guardianKindOptions=["엄마","아빠"];
+
+const QUESTIONS=[
+  "하루 중 우리 가족이 제일 행복한 순간은 언제인가요?",
+  "우리 가족이 함께 방문하고 싶은 장소는 어디인가요?",
+  "우리 가족만의 재미있는 문화가 있다면 무엇일까요?",
+  "우리 가족이 가장 좋아하는 놀이는 무엇인가요?",
+  "오늘 이 자리에서 서로에게 해주고 싶은 말이 있나요?",
+];
+
+function newChar(role:"child"|"guardian"):CharDraft{
+  return {photo:"",file:null,name:"",role,kind:"",hair:"",hairColor:""};
 }
+
+function charAppearance(c:CharDraft):string{
+  const roleLabel=c.role==="child"?c.kind||"아이":"보호자";
+  const parts=[roleLabel,c.hair,c.hairColor+" 머리"].filter(Boolean);
+  return parts.join(", ");
+}
+
+export default function Home(){
+  const [entered,setEntered]=useState(false);
+  const [entering,setEntering]=useState(false);
+  const [step,setStep]=useState(0);
+  const [view,setView]=useState<"make"|"gallery">("make");
+  const [chars,setChars]=useState<CharDraft[]>([newChar("child"),newChar("guardian")]);
+  const [question,setQuestion]=useState("");
+  const [answer,setAnswer]=useState("");
+  const [story,setStory]=useState<Story|null>(null);
+  const [creating,setCreating]=useState(false);
+  const [progress,setProgress]=useState("");
+  const [progressPercent,setProgressPercent]=useState(0);
+  const [error,setError]=useState("");
+  const [stories,setStories]=useState<Story[]>([]);
+  const [loadingGallery,setLoadingGallery]=useState(false);
+  const [isFromGallery,setIsFromGallery]=useState(false);
+
+  function resetAll(){
+    setEntered(false);setEntering(false);setStep(0);setView("make");
+    setChars([newChar("child"),newChar("guardian")]);
+    setQuestion("");setAnswer("");
+    setStory(null);setError("");setCreating(false);setProgress("");setProgressPercent(0);
+  }
+
+  useEffect(()=>{
+    if(typeof window!=="undefined"){
+      try{sessionStorage.clear();localStorage.clear();if('scrollRestoration' in history)history.scrollRestoration='manual';}catch{}
+      const handlePageShow=(e:PageTransitionEvent)=>{if(e.persisted)resetAll();};
+      window.addEventListener("pageshow",handlePageShow);
+      return ()=>window.removeEventListener("pageshow",handlePageShow);
+    }
+  },[]);
+
+  function enter(){if(entering)return;setEntering(true);setTimeout(()=>{setEntered(true);setEntering(false)},850)}
+
+  async function choosePhoto(e:ChangeEvent<HTMLInputElement>,index:number){
+    const f=e.target.files?.[0];if(!f)return;setError("");
+    try{
+      const bitmap=await createImageBitmap(f);
+      const max=960,scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+      canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+      canvas.getContext("2d")!.drawImage(bitmap,0,0,canvas.width,canvas.height);
+      bitmap.close();
+      const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(v=>v?resolve(v):reject(new Error()),"image/jpeg",.68));
+      const normalized=new File([blob],`family-face-${index+1}.jpg`,{type:"image/jpeg"});
+      const url=URL.createObjectURL(normalized);
+      setChars(v=>v.map((c,i)=>{
+        if(i!==index)return c;
+        if(c.photo)URL.revokeObjectURL(c.photo);
+        return {...c,photo:url,file:normalized};
+      }));
+    }catch{setError("이 사진은 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘.")}
+    finally{e.target.value=""}
+  }
+
+  function updateChar(index:number,patch:Partial<CharDraft>){
+    setChars(v=>v.map((c,i)=>i===index?{...c,...patch}:c));
+  }
+
+  function charReady(c:CharDraft){return !!(c.name.trim()&&c.photo&&c.kind&&c.hair&&c.hairColor)}
+
+  function go(n:number){setView("make");setStep(n);window.scrollTo({top:0,behavior:"smooth"})}
+
+  async function fileData(f:File){return await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(f)})}
+  async function readApi(res:Response){const type=res.headers.get("content-type")||"";if(!type.includes("application/json"))throw new Error("잠시 기다려 줘.");return await res.json()}
+
+  async function createStory(){
+    if(chars.some(c=>!charReady(c))||!question||!answer.trim())return;
+    setCreating(true);setError("");setProgressPercent(10);setProgress("가족 얼굴 그림을 살펴보고 있어...");
+    try{
+      const photos=await Promise.all(chars.map(c=>fileData(c.file!)));
+      const characters=chars.map((c,i)=>({
+        name:c.name.trim(),
+        role:c.role,
+        appearance:charAppearance(c),
+        photo:photos[i],
+      }));
+
+      setProgressPercent(20);setProgress("우리 가족 동화를 쓰고 있어 ✨");
+      const res=await fetch("/api/stories",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({characters,question,answer:answer.trim()}),
+      });
+      const data=await readApi(res);
+      if(!res.ok)throw new Error(data.error||"동화를 만들지 못했어.");
+      let made:Story=data.story;
+      setStory(made);
+
+      setProgressPercent(40);setProgress("표지 그림을 그리고 있어 🎨");
+      // 표지(page 0)만 이미지 생성
+      for(let attempt=0;attempt<60;attempt++){
+        try{
+          const r=await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:made.id,page:0})});
+          const d=await readApi(r);
+          if(r.status===202){setProgress("표지 그림 순서를 기다리고 있어");await new Promise(resolve=>setTimeout(resolve,5000));continue}
+          if(!r.ok)throw new Error(d.error||"표지를 만들지 못했어.");
+          if(d.image_url){
+            made={...made,pages:made.pages.map((p,i)=>i===0?{...p,image_url:d.image_url}:p)};
+            setStory(made);
+          }
+          break;
+        }catch(e){
+          if(attempt>=2)throw e;
+          setProgress("표지를 정성껏 마무리하고 있어");
+          await new Promise(resolve=>setTimeout(resolve,15000));
+        }
+      }
+      // 나머지 페이지는 이미지 없이 complete 처리
+      for(let i=1;i<5;i++){
+        await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:made.id,page:i})});
+      }
+
+      setProgressPercent(100);setProgress("동화책 완성! 짜잔~ 📖");
+      await new Promise(resolve=>setTimeout(resolve,600));
+      made={...made,status:"complete"};setStory(made);setIsFromGallery(false);go(3);
+    }catch(e){setError(e instanceof Error?e.message:"잠시 후 다시 시도해 줘.")}
+    finally{setCreating(false)}
+  }
+
+  async function openGallery(){setEntered(true);setView("gallery");setLoadingGallery(true);setError("");try{const r=await fetch("/api/stories");const d=await readApi(r);if(!r.ok)throw new Error(d.error);setStories(d.stories||[])}catch(e){setError(e instanceof Error?e.message:"동화를 불러오지 못했어.")}finally{setLoadingGallery(false)}}
+  async function deleteStory(id:string){if(!window.confirm("이 동화를 책장에서 지울까?"))return;try{const r=await fetch(`/api/stories?id=${encodeURIComponent(id)}`,{method:"DELETE"});const d=await readApi(r);if(!r.ok)throw new Error(d.error||"동화를 지우지 못했어.");setStories(v=>v.filter(s=>s.id!==id))}catch(e){setError(e instanceof Error?e.message:"동화를 지우지 못했어.")}}
+  function handleSaveStory(){alert("동화책장에 소중히 저장되었어! 📚\n언제든지 '우리 동화 책장'에서 다시 읽을 수 있어.");resetAll();}
+  async function keepStory(decoration:Decoration){if(story){const res=await fetch("/api/stories",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:story.id,...decoration})});if(!res.ok){setError("꾸민 내용을 저장하지 못했어. 한 번만 다시 눌러 줘.");return}}setStory(null);await openGallery();window.scrollTo({top:0,behavior:"smooth"})}
+  function openStory(s:Story){setStory(s);setIsFromGallery(true);setView("make");setStep(3)}
+
+  if(!entered)return <main className={`entrance ${entering?"leaving":""}`}><button className="entrance-stage" onClick={enter} aria-label="우리 가족 동화 들어가기"><span className="orb"><img src="/phodong-mascot.png" alt=""/><i/><b className="sp a">✦</b><b className="sp b">✦</b></span></button><style>{css}</style></main>;
+
+  return <main className="inside"><header><button className="logo" onClick={resetAll}><img src="/phodong-logo.png" alt="포동"/></button>{view==="make"&&<div className="progress">{[0,1,2,3].map(i=><i key={i} className={i<=step?"on":""}/>)}</div>}<button className="home" onClick={view==="gallery"?()=>go(0):openGallery}>{view==="gallery"?"동화 만들기":"우리 동화 책장"}</button></header>
+    {view==="gallery"?<Gallery stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory}/>:<>
+
+    {/* STEP 0: 인트로 */}
+    {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 우리 가족 동화 놀이터야!</small><h1 className="sentence-reveal">가족이 함께<br/>세상에 하나뿐인<br/>동화를 만들어 볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
+
+    {/* STEP 1: 가족 소개 (2장 사진 + 캐릭터 옵션) */}
+    {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 그림을 올려줘!" sub="보호자가 그린 자녀 얼굴, 자녀가 그린 보호자 얼굴 각 1장씩"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
+      <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 자녀 카드":"👨 보호자 카드"}</h3>
+      <p style={{fontSize:13,color:"#8f6d78",margin:"0 0 12px"}}>{i===0?"보호자가 그린 자녀의 얼굴 사진을 올려 줘":"자녀가 그린 보호자의 얼굴 사진을 올려 줘"}</p>
+      <div className={`mini-drop ${c.photo?"filled":""}`}>
+        {c.photo?<img src={c.photo} alt={`${i+1}번째 얼굴`}/>:<div><span>🖼</span><strong>얼굴 그림</strong></div>}
+        <input id={`camera-${i}`} type="file" accept="image/*" capture="environment" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
+        <input id={`library-${i}`} type="file" accept="image/*" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
+        <div><label htmlFor={`camera-${i}`}>📸 직접 찍기</label><label htmlFor={`library-${i}`}>🖼 앨범에서</label></div>
+      </div>
+      <label>이름 <em>필수</em><input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 엄마 이름"}/></label>
+      <div className="option-row"><span>{i===0?"성별":"역할"}</span><div>{(i===0?childKindOptions:guardianKindOptions).map(k=><button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k})}>{k}</button>)}</div></div>
+      <div className="option-row"><span>머리 길이</span><div>{hairOptions.map(h=><button type="button" key={h} className={c.hair===h?"picked":""} onClick={()=>updateChar(i,{hair:h})}>{h}</button>)}</div></div>
+      <div className="option-row"><span>머리 색</span><div>{hairColorOptions.map(h=><button type="button" key={h} className={c.hairColor===h?"picked":""} onClick={()=>updateChar(i,{hairColor:h})}>{h}</button>)}</div></div>
+    </article>)}</div>
+    {error&&<p className="error">{error}</p>}
+    <Actions back={()=>go(0)} next={()=>go(2)} disabled={chars.some(c=>!charReady(c))} label="우리 이야기 고르기 →"/></section>}
+
+    {/* STEP 2: 질문 선택 & 답변 */}
+    {step===2&&<section className="screen multi-step"><Title over="우리 가족 이야기 💬" title="질문을 하나 골라 대답해 줘!" sub="보호자와 아이가 함께 골라 보세요"/><div style={{maxWidth:760,margin:"0 auto 32px",display:"grid",gap:14}}>{QUESTIONS.map(q=><button key={q} className={`question-btn ${question===q?"picked":""}`} onClick={()=>{setQuestion(q);setAnswer("")}}><span className="q-check">✓</span><span>{q}</span></button>)}</div>{question&&<div style={{maxWidth:760,margin:"0 auto"}}><label style={{display:"grid",gap:10,fontWeight:700}}><span>우리 가족의 대답</span><textarea className="answer-box" value={answer} onChange={e=>setAnswer(e.target.value)} maxLength={300} rows={4} placeholder="예: 저녁에 다 같이 밥 먹을 때가 제일 좋아요!" spellCheck={false}/></label></div>}
+    {error&&<p className="error">{error}</p>}
+    <Actions back={()=>go(1)} next={()=>go(3)} disabled={!question||!answer.trim()} label="동화 만들어 줘! ✨"/></section>}
+
+    {/* STEP 3: 동화 생성 대기 → 결과 보기 */}
+    {step===3&&story&&<ReaderBook story={story} isFromGallery={isFromGallery} onSave={handleSaveStory} onDecorate={()=>go(4)}/>}
+    {step===4&&story&&<TouchDecorateBook story={story} finish={keepStory}/>}
+    </>}
+    {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}
+    <style>{css}</style></main>
+}
+
 function Title({over,title,sub}:{over:string,title:string,sub?:string}){return <div className="heading"><small>{over}</small><h2>{title}</h2>{sub&&<p>{sub}</p>}</div>}
 function Actions({back,next,disabled,label}:{back:()=>void,next:()=>void,disabled:boolean,label:string}){return <div className="actions"><button onClick={back}>뒤로</button><button className="next" disabled={disabled} onClick={next}>{label}</button></div>}
-function OptionRow({title,values,value,pick}:{title:string;values:string[];value:string;pick:(v:string)=>void}){return <div className="option-row"><span>{title}</span><div>{values.map(v=><button type="button" key={v} className={value===v?"picked":""} onClick={()=>pick(v)}>{v}</button>)}</div></div>}
-function StoryBook({story,page,setPage,restart,keep}:{story:Story,page:number,setPage:(n:number)=>void;restart:()=>void;keep:(s:Sticker[])=>void}){const p=story.pages[page],touch=useRef(0),bookRef=useRef<HTMLDivElement>(null),[turning,setTurning]=useState<"next"|"prev"|null>(null),[stickers,setStickers]=useState<Sticker[]>(story.stickers||[]),[selected,setSelected]=useState(""),[ghost,setGhost]=useState<{src:string;x:number;y:number}|null>(null);function turn(n:number){if(n<0||n>=story.pages.length||n===page||turning)return;setTurning(n>page?"next":"prev");setSelected("");setPage(n);setTimeout(()=>setTurning(null),480)}function point(e:React.PointerEvent){const r=bookRef.current?.getBoundingClientRect();if(!r)return null;return {x:Math.max(4,Math.min(96,(e.clientX-r.left)/r.width*100)),y:Math.max(6,Math.min(94,(e.clientY-r.top)/r.height*100)),inside:e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom}}function startNew(e:React.PointerEvent<HTMLButtonElement>,src:string){e.currentTarget.setPointerCapture(e.pointerId);setGhost({src,x:e.clientX,y:e.clientY})}function moveNew(e:React.PointerEvent){if(ghost)setGhost(v=>v&&({...v,x:e.clientX,y:e.clientY}))}function endNew(e:React.PointerEvent,src:string){const at=point(e);setGhost(null);if(at?.inside){const id=crypto.randomUUID();setStickers(v=>[...v,{id,src,page,x:at.x,y:at.y,size:112}]);setSelected(id)}}function moveSticker(e:React.PointerEvent<HTMLButtonElement>,id:string){if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const at=point(e);if(at)setStickers(v=>v.map(s=>s.id===id?{...s,x:at.x,y:at.y}:s))}return <section className="screen story decorate"><div className="sticker-help"><strong>스티커로 동화를 꾸며 봐!</strong><span>마음에 드는 포동이를 손가락으로 끌어서 책에 붙여 줘.</span></div><div className="sticker-tray">{stickerSources.map((src,i)=><button key={src} aria-label={`${i+1}번째 포동이 스티커`} onPointerDown={e=>startNew(e,src)} onPointerMove={moveNew} onPointerUp={e=>endNew(e,src)}><img src={src} alt="" draggable={false}/></button>)}</div><div ref={bookRef} className={`book ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{if((e.target as HTMLElement).closest(".placed-sticker"))return;const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>{stickers.filter(s=>s.page===page).map(s=><button key={s.id} className={`placed-sticker ${selected===s.id?"selected":""}`} style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size}} onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);setSelected(s.id)}} onPointerMove={e=>moveSticker(e,s.id)}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></button>)}<div className="visual" key={`image-${page}`}>{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">포동이가 삽화를 그리고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article key={`text-${page}`}><small>{story.child_name}의 {story.genre} 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p><nav><button disabled={page===0||!!turning} onClick={()=>turn(page-1)}>앞 이야기</button><div>{story.pages.map((_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}번째 이야기`}/>)}</div>{page<story.pages.length-1?<button disabled={!!turning} onClick={()=>turn(page+1)}>다음 이야기</button>:<button onClick={()=>keep(stickers)}>간직할래!</button>}</nav></article></div>{selected&&<div className="sticker-tools"><button onClick={()=>setStickers(v=>v.map(s=>s.id===selected?{...s,size:Math.max(70,s.size-18)}:s))}>작게</button><button onClick={()=>setStickers(v=>v.map(s=>s.id===selected?{...s,size:Math.min(220,s.size+18)}:s))}>크게</button><button onClick={()=>{setStickers(v=>v.filter(s=>s.id!==selected));setSelected("")}}>떼기</button></div>}{ghost&&<img className="sticker-ghost" src={ghost.src} style={{left:ghost.x,top:ghost.y}} alt=""/>}<button className="restart" onClick={restart}>다른 이야기도 만들자!</button></section>}
-function Gallery({stories,loading,error,open,remove}:{stories:Story[],loading:boolean,error:string,open:(s:Story)=>void,remove:(id:string)=>void}){return <section className="screen gallery"><Title over="📚 동화 책장" title="우리의 특별한 이야기"/>{loading?<p className="gallery-state">책장을 열고 있어…</p>:error?<p className="error">{error}</p>:stories.length===0?<p className="gallery-state">아직 첫 번째 동화를 기다리고 있어!</p>:<div className="shelf">{stories.map(s=><article key={s.id}><button className="story-card" onClick={()=>open(s)}>{s.pages[0]?.image_url&&<img src={s.pages[0].image_url} alt=""/>}<div><small>{s.genre}</small><h3>{s.title}</h3><p>{s.child_name}의 이야기</p></div></button><button className="delete-story" onClick={()=>remove(s.id)} aria-label={`${s.title} 삭제`}>삭제</button></article>)}</div>}</section>}
+function Gallery({stories,loading,error,open,remove}:{stories:Story[],loading:boolean,error:string,open:(s:Story)=>void,remove:(id:string)=>void}){return <section className="screen gallery"><Title over="📚 동화 책장" title="우리의 특별한 이야기"/>{loading?<p className="gallery-state">책장을 열고 있어…</p>:error?<p className="error">{error}</p>:stories.length===0?<p className="gallery-state">아직 첫 번째 동화를 기다리고 있어!</p>:<div className="shelf">{stories.map(s=><article key={s.id}><button className="story-card" onClick={()=>open(s)}>{s.pages[0]?.image_url&&<img src={s.pages[0].image_url} alt=""/>}<div><small>{s.child_name}</small><h3>{s.title}</h3><p>{s.question?.slice(0,28)}…</p></div></button><button className="delete-story" onClick={()=>remove(s.id)} aria-label={`${s.title} 삭제`}>삭제</button></article>)}</div>}</section>}
 const css=`
 :root{--rose:#f55f91;--deep:#3d2940;--paper:#fffaf8}*{box-sizing:border-box}html,body{margin:0;background:var(--paper)}body,button,input,textarea{font-family:"Noto Sans KR",sans-serif!important;color:var(--deep)}button{cursor:pointer}.entrance{height:100svh;overflow:hidden;background:radial-gradient(circle at 50% 42%,#eeeeec 0,#d7d7d4 58%,#c4c4c1 100%)}.entrance-stage{width:100%;height:100%;border:0;background:none;display:grid;place-items:center;padding:clamp(18px,4vw,48px)}.orb{display:block;position:relative;width:min(76vw,76svh,720px);aspect-ratio:1;border-radius:50%;overflow:hidden;background:#f7c8d5;opacity:0;transform:scale(.08) translateY(40px) rotate(-18deg);box-shadow:inset -42px -48px 70px #8e526144,inset 28px 25px 42px #ffffffa8,0 42px 75px #4a3a3a4d,0 8px 18px #ffffff8c}.revealed .orb{animation:orb-arrive 1.05s cubic-bezier(.16,1.28,.3,1) forwards,orb-float 3.4s 1.1s ease-in-out infinite}.orb:before{content:"";position:absolute;inset:1.2%;z-index:4;border-radius:50%;border:2px solid #ffffffa3;box-shadow:inset -14px -16px 25px #632d453d;pointer-events:none}.orb:after{content:"";position:absolute;z-index:4;left:18%;top:9%;width:34%;height:16%;border-radius:50%;background:radial-gradient(ellipse,#fff9 0,#fff0 72%);transform:rotate(-18deg);filter:blur(2px);pointer-events:none}.orb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;transform:scale(1.005)}.orb i{position:absolute;inset:6%;z-index:5;border:2px solid #fff8;border-radius:50%;animation:pulse 2.4s 1.1s infinite}.sp{position:absolute;z-index:6;color:#fff;font-size:clamp(24px,4vw,46px);text-shadow:0 3px 18px #ff78a8}.sp.a{top:19%;left:7%}.sp.b{right:8%;top:29%}@keyframes orb-arrive{0%{opacity:0;transform:scale(.08) translateY(40px) rotate(-18deg)}65%{opacity:1;transform:scale(1.08) translateY(-6px) rotate(3deg)}100%{opacity:1;transform:scale(1) translateY(0) rotate(0)}}@keyframes orb-float{50%{transform:translateY(-12px) scale(1.012)}}@keyframes pulse{70%{transform:scale(1.08);opacity:0}100%{opacity:0}}
 .inside{min-height:100svh}header{height:76px;padding:0 clamp(18px,5vw,70px);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:#fffaf8ed;border-bottom:1px solid #f4e1e7;position:relative;z-index:20}.logo,.home{border:0;background:none}.logo{justify-self:start}.logo img{width:100px;height:54px;object-fit:contain}.home{justify-self:end;color:#8f6d78}.progress{display:flex;gap:9px}.progress i{width:9px;height:9px;border-radius:50%;background:#ead8dd}.progress i.on{background:var(--rose)}.screen{min-height:calc(100svh - 76px);padding:clamp(40px,6vw,80px) clamp(20px,6vw,90px);position:relative;overflow:hidden;animation:in .4s ease}.heading{text-align:center;margin-bottom:40px;position:relative;z-index:2}.heading small,.hello small,.heading p,.book article p{font-family:"Gowun Dodum",sans-serif}.heading small,.hello small{font-size:22px;color:var(--rose)}.heading h2{font-size:clamp(38px,5vw,62px);margin:8px 0;font-weight:600;letter-spacing:-.045em}.heading p{font-size:20px;color:#8d6874;margin:0}.hello{display:grid;grid-template-columns:.85fr 1.15fr;align-items:center;gap:5vw;background:linear-gradient(145deg,#fffaf8,#fff0f5)}.hello>img{width:100%;max-height:72svh;object-fit:contain;filter:drop-shadow(0 24px 34px #ab45692b)}.hello h1{font-size:clamp(38px,5vw,66px);line-height:1.3;letter-spacing:-.045em;margin:14px 0 34px}.hello em{font-style:normal;color:var(--rose)}.hello-actions{display:flex;gap:12px;flex-wrap:wrap}.hello-actions>button:last-child{border:1px solid #e6bdca;background:#fff;padding:15px 22px;border-radius:16px}.next{border:0;background:var(--rose);color:#fff;padding:16px 24px;border-radius:16px;font-size:18px;box-shadow:0 14px 34px #da568338}.next:disabled{background:#d8c7cc;box-shadow:none}.corner{position:absolute;width:clamp(240px,22vw,330px);z-index:0;filter:drop-shadow(0 18px 24px #ad60702b)}.corner.right{right:18px;top:135px}.corner.left{left:18px;top:135px}.choices{max-width:820px;margin:0 auto 50px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;position:relative;z-index:2}.choices button{aspect-ratio:1;border:2px solid transparent;border-radius:28px;background:#fff0f4;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}.choices button:nth-child(even){background:#fff3df}.choices button.picked{border-color:var(--rose)}.choices b{font-size:48px}.choices span{margin-top:9px}.choices i{display:none;position:absolute;right:12px;top:12px;width:24px;height:24px;border-radius:50%;background:var(--rose);color:#fff;font-style:normal}.choices .picked i{display:grid;place-items:center}.actions{max-width:760px;margin:28px auto 0;display:flex;justify-content:space-between;position:relative;z-index:3}.actions>button:first-child{border:0;background:none;color:#947984}.photo-step,.details{background:linear-gradient(145deg,#fffafb,#fff0f4)}.drop{width:min(620px,100%);height:min(55svh,550px);min-height:350px;margin:auto;border:2px dashed #e5aabe;border-radius:30px;background:#ffffffad;overflow:hidden;position:relative;z-index:2}.drop input{position:absolute;opacity:0}.drop label{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.drop label>span{font-size:64px}.drop label strong{font-size:25px;margin-top:12px}.drop label small{color:#9b7f88;margin-top:7px}.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.drop b{position:absolute;bottom:20px;background:#3d2940db;color:#fff;padding:11px 18px;border-radius:99px}.form{width:min(760px,100%);margin:auto;background:#fff;padding:34px 42px;border-radius:30px;box-shadow:0 24px 65px #8f49601a;display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;position:relative;z-index:2}.form label{font-weight:600}.form .wide,.form fieldset{grid-column:1/-1}.form input,.form textarea{display:block;width:100%;margin-top:7px;border:0;border-bottom:2px solid #f1dce3;background:#fffafb;padding:13px 11px;outline:none}.form textarea{min-height:88px;resize:vertical}.form fieldset{border:0;padding:0;margin:0}.form legend{font-weight:600;margin-bottom:10px}.genres{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.genres button{border:1px solid #edd5dd;background:#fff7f9;border-radius:14px;padding:11px 5px}.genres button b{display:block;font-size:25px;margin-bottom:4px}.genres button.picked{border-color:var(--rose);background:#ffe6ee;color:#c83f70}.form>small{text-align:center;color:#a38891}.error{text-align:center;color:#b52658}.loading{position:fixed;inset:0;z-index:50;background:#fff7f9f2;backdrop-filter:blur(12px);display:grid;place-items:center;text-align:center;padding:24px}.loading img{width:min(330px,70vw);animation:dream 2s infinite}.loading h2{font-size:clamp(24px,4vw,38px);margin:4px 0 10px}.loading p{font-family:"Gowun Dodum",sans-serif;color:#8c6874}.loadbar{width:min(440px,76vw);height:9px;background:#f0dce3;border-radius:9px;overflow:hidden;margin:20px auto}.loadbar span{display:block;height:100%;background:var(--rose);transition:.5s}.story{background:#f8dbe4}.book{max-width:1180px;margin:auto;display:grid;grid-template-columns:.9fr 1.1fr;min-height:min(670px,72svh);background:#fff;box-shadow:0 30px 90px #6834462e;border-radius:28px;overflow:hidden}.visual{position:relative;background:#f1c9d6}.visual img{width:100%;height:100%;object-fit:cover}.visual span{position:absolute;left:20px;top:20px;background:#fff;padding:8px 12px;border-radius:99px;color:var(--rose)}.image-wait{height:100%;display:grid;place-items:center}.book article{padding:clamp(36px,6vw,72px);display:flex;flex-direction:column;justify-content:center}.book article>small{color:var(--rose)}.book article h2{font-size:clamp(34px,4vw,54px);margin:14px 0 24px}.book article p{font-size:22px;line-height:1.85;color:#5f495f}.book nav{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-top:28px}.book nav>button{border:0;background:#f9e7ed;padding:10px 15px;border-radius:99px}.book nav>button:disabled{opacity:.3}.book nav div{display:flex;justify-content:center;gap:7px}.book nav div button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:#e8c7d1}.book nav div button.on{background:var(--rose)}.restart{display:block;margin:24px auto;border:0;background:none;border-bottom:1px solid #6e4f59}.gallery{background:linear-gradient(#fffaf8,#ffedf3)}.shelf{max-width:1180px;margin:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.shelf>button{padding:0;text-align:left;border:0;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px #8f49601a;transition:.25s}.shelf>button:hover{transform:translateY(-5px)}.shelf img{width:100%;aspect-ratio:1.25;object-fit:cover}.shelf div{padding:18px 20px 22px}.shelf small{color:var(--rose)}.shelf h3{font-size:23px;margin:7px 0}.shelf p,.gallery-state{text-align:center;color:#8b7380}.shelf p{text-align:left;margin:0}@keyframes in{from{opacity:0;transform:translateY(10px)}}@keyframes dream{50%{transform:translateY(-10px) rotate(2deg)}}
@@ -123,4 +232,6 @@ const css=`
 .gallery{background:radial-gradient(circle at 18% 12%,#fff0f7 0,transparent 28%),radial-gradient(circle at 80% 8%,#e8eeff 0,transparent 25%),radial-gradient(circle at 62% 86%,#fff4d6 0,transparent 25%),linear-gradient(155deg,#fffbfc,#f4f0ff)!important}
 .inside{background:linear-gradient(145deg,#fffdfb 0%,#fff4f7 48%,#ffeef4 100%);position:relative}.inside:before{content:"";position:fixed;inset:76px 0 0;pointer-events:none;background:radial-gradient(circle at 12% 18%,#ffd5e48c 0,transparent 28%),radial-gradient(circle at 88% 16%,#fff0c985 0,transparent 24%),radial-gradient(circle at 78% 82%,#e8dcff78 0,transparent 28%),radial-gradient(circle at 18% 84%,#dff5f087 0,transparent 25%);filter:saturate(.92)}header{background:linear-gradient(180deg,#fffefcf7,#fff8faf0);box-shadow:0 8px 28px #9b526314,inset 0 -1px #eecfd8;backdrop-filter:blur(14px)}.screen,.photo-step,.details,.multi-step,.gallery,.story{background:radial-gradient(circle at 14% 12%,#ffffffc9 0,transparent 30%),radial-gradient(circle at 88% 18%,#ffe2ecbd 0,transparent 33%),radial-gradient(circle at 74% 90%,#fff0ce9c 0,transparent 30%),linear-gradient(145deg,#fffafbd9,#ffeef4d9)}.hello{background:radial-gradient(circle at 20% 34%,#ffffff 0,transparent 38%),radial-gradient(circle at 82% 18%,#ffd9e6 0,transparent 38%),linear-gradient(145deg,#fffdfb,#ffeef4)}.heading h2,.hello h1{text-shadow:0 2px 0 #fff,0 12px 30px #c16d8720}.item-card,.hero-card,.form,.phodong-choice{background:linear-gradient(145deg,#ffffff,#fff8fa);border-color:#ffffff;box-shadow:inset 0 1px 0 #fff,0 24px 60px #9d536d1d,0 6px 16px #9d536d16}.item-card:before,.hero-card:before{content:"";position:absolute;inset:1px;border-radius:27px;pointer-events:none;box-shadow:inset 0 0 0 1px #f3dce4,inset 12px 14px 28px #ffffff}.mini-drop,.choices button{background:linear-gradient(145deg,#fff8fa,#ffe6ee);box-shadow:inset 5px 6px 12px #ffffff,inset -7px -8px 14px #eab8c54f,0 10px 24px #9c526917}.choices button:nth-child(even){background:linear-gradient(145deg,#fffaf1,#ffe9c9)}.choices button{transition:transform .22s ease,box-shadow .22s ease}.choices button:hover,.choices button.picked{transform:translateY(-4px);box-shadow:inset 5px 6px 12px #fff,inset -7px -8px 14px #eab8c54f,0 18px 34px #a6506d24}.next,.add-card{background:linear-gradient(145deg,#ff769f,#e8487d);box-shadow:inset 0 2px 1px #ffffff70,inset 0 -4px 8px #b9295a38,0 14px 30px #d9588644}.next:active,.add-card:active{transform:translateY(2px);box-shadow:inset 0 3px 8px #a72b5538,0 5px 14px #d9588633}.option-row button,.genres button{background:linear-gradient(145deg,#fff,#fff4f8);box-shadow:inset 0 1px #fff,0 4px 10px #9a4d6610}.option-row button.picked,.genres button.picked{background:linear-gradient(145deg,#ffedf3,#ffdce8);box-shadow:inset 0 1px #fff,0 7px 16px #d7578326}.book{border:1px solid #ffffff;box-shadow:0 38px 90px #72364a33,0 10px 24px #72364a24,inset 0 1px #fff;position:relative}.book:after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 0 1px #eed5dd,inset 18px 16px 35px #ffffff38}.visual{background:linear-gradient(145deg,#f5d6df,#eebaca)}.loading{background:radial-gradient(circle at 50% 38%,#ffffff 0,#fff4f8e8 45%,#f9dce7ed 100%)}.loading>div{background:linear-gradient(145deg,#ffffffd9,#fff6f9d9);border:1px solid #fff;border-radius:38px;padding:30px;box-shadow:inset 0 1px #fff,0 35px 90px #78374d2b}.shelf>article{background:linear-gradient(145deg,#fff,#fff7fa);box-shadow:inset 0 1px #fff,0 24px 55px #8f496024,0 6px 14px #8f496014}.sticker-tray,.pen-tools{background:linear-gradient(145deg,#ffffffec,#fff4f8e8)!important;box-shadow:inset 0 1px #fff,0 16px 38px #743c511c!important}@media(prefers-reduced-motion:no-preference){.item-card,.hero-card,.phodong-choice{transition:transform .25s ease,box-shadow .25s ease}.item-card:hover,.hero-card:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 #fff,0 30px 70px #9d536d25,0 8px 18px #9d536d18}}
 .decorate{padding-top:22px;overflow:visible}.sticker-help{text-align:center;margin:0 auto 12px;display:flex;justify-content:center;align-items:baseline;gap:10px;flex-wrap:wrap}.sticker-help strong{font-size:20px}.sticker-help span{color:#896d76}.sticker-tray{width:min(1060px,100%);margin:0 auto 16px;padding:10px 14px;display:flex;gap:10px;overflow-x:auto;background:#fffaf7d9;border:1px solid #eccfd8;border-radius:22px;box-shadow:0 12px 30px #71374b16;touch-action:none}.sticker-tray button{width:82px;height:82px;flex:0 0 82px;border:0;background:#fff0f4;border-radius:17px;padding:5px;touch-action:none}.sticker-tray img{width:100%;height:100%;object-fit:contain;pointer-events:none}.decorate .book{position:relative}.placed-sticker{position:absolute;z-index:12;transform:translate(-50%,-50%);padding:0;border:0;background:none;touch-action:none;filter:drop-shadow(0 5px 5px #5e354b3d)}.placed-sticker img{display:block;width:100%;height:auto;pointer-events:none}.placed-sticker.selected{outline:3px dashed #ff5f91;outline-offset:5px;border-radius:12px}.sticker-tools{position:sticky;z-index:15;bottom:14px;margin:-4px auto 0;width:max-content;display:flex;gap:6px;background:#3d2940e8;padding:7px;border-radius:99px;box-shadow:0 9px 28px #3d294055}.sticker-tools button{border:0;background:#fff;color:#563f58;border-radius:99px;padding:8px 13px;font-weight:700}.sticker-tools button:last-child{color:#c52e61}.sticker-ghost{position:fixed;z-index:100;width:120px;max-height:150px;object-fit:contain;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 10px 12px #3d294055)}.item-grid{width:min(1380px,100%);grid-template-columns:repeat(3,minmax(0,1fr))}.hero-grid{width:min(1180px,100%)}@media(max-width:850px){.decorate{padding:16px 10px}.sticker-help{font-size:14px}.sticker-help strong{font-size:18px}.sticker-tray button{width:68px;height:68px;flex-basis:68px}.decorate .book{height:calc(100svh - 275px);min-height:520px}.placed-sticker{max-width:25vw}.item-grid{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.item-card{scroll-snap-align:center}}@media(max-width:560px){.item-grid{grid-template-columns:1fr;overflow:visible}}
+/* question selection & answer */
+.question-btn{display:flex;align-items:center;gap:14px;border:2px solid #ead2da;background:#fff8fa;border-radius:18px;padding:18px 20px;text-align:left;font-size:16px;line-height:1.5;transition:all .18s}.question-btn:hover{border-color:#f09fb8;background:#fff0f5}.question-btn.picked{border-color:var(--rose);background:linear-gradient(145deg,#fff0f5,#ffdce8);font-weight:700}.q-check{width:24px;height:24px;min-width:24px;border-radius:50%;border:2px solid #ddbfca;display:grid;place-items:center;color:transparent;font-size:14px}.question-btn.picked .q-check{background:var(--rose);border-color:var(--rose);color:#fff}.answer-box{display:block;width:100%;border:2px solid #ead2da;border-radius:16px;background:#fffafc;padding:16px;font-size:16px;line-height:1.65;resize:vertical;outline:none;margin-top:4px;min-height:100px;transition:border-color .2s}.answer-box:focus{border-color:var(--rose)}
 `;

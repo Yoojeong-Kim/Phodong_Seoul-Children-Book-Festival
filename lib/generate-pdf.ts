@@ -10,8 +10,10 @@ export interface PdfStoryPage {
 export interface PdfStoryData {
   title: string;
   child_name: string;
-  genre: string;
-  object_name: string;
+  genre?: string;
+  object_name?: string;
+  question?: string;
+  answer?: string;
   pages: PdfStoryPage[];
 }
 
@@ -47,9 +49,9 @@ export async function downloadStoryPdf(story: PdfStoryData) {
       </div>
       <div class="text-side cover-text-side">
         <div class="cover-content">
-          <small>${esc(story.child_name)}의 ${esc(story.genre)} 동화</small>
+          <small>${esc(story.child_name)}의 동화</small>
           <h1>${esc(story.title)}</h1>
-          <p class="cover-sub">소중한 물건: ${esc(story.object_name)}</p>
+          ${story.question ? `<p class="cover-sub">${esc(story.question)}</p>` : story.object_name ? `<p class="cover-sub">소중한 물건: ${esc(story.object_name)}</p>` : ''}
         </div>
       </div>
     </div>`);
@@ -63,7 +65,7 @@ export async function downloadStoryPdf(story: PdfStoryData) {
           ${imgTag(p.image_url, pageTitle)}
         </div>
         <div class="text-side">
-          <small>${esc(story.child_name)}의 ${esc(story.genre)} 동화</small>
+          <small>${esc(story.child_name)}의 동화</small>
           <span class="page-num">${i + 1} / ${story.pages.length}</span>
           <h2>${esc(pageTitle)}</h2>
           <hr/>
