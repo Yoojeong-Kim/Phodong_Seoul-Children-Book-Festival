@@ -18,6 +18,8 @@ export async function ensureStoryTables(){
  try{await db.prepare("ALTER TABLE stories ADD COLUMN characters_json TEXT DEFAULT '[]'").run();}catch{}
  try{await db.prepare("ALTER TABLE stories ADD COLUMN question TEXT NOT NULL DEFAULT ''").run();}catch{}
  try{await db.prepare("ALTER TABLE stories ADD COLUMN answer TEXT NOT NULL DEFAULT ''").run();}catch{}
+ try{await db.prepare("ALTER TABLE stories ADD COLUMN genre TEXT NOT NULL DEFAULT ''").run();}catch{}
+ try{await db.prepare("ALTER TABLE stories ADD COLUMN object_name TEXT NOT NULL DEFAULT ''").run();}catch{}
 }
 export function rowToStory(row:any):StoryRecord{
  const saved=JSON.parse(row.stickers_json||"[]"),decoration=Array.isArray(saved)?{stickers:saved,drawings:[]}:{stickers:saved.stickers||[],drawings:saved.drawings||[]};
