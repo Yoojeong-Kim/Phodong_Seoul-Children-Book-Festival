@@ -200,13 +200,13 @@ export default function Home(){
     {/* STEP 2: 질문 선택 & 답변 */}
     {step===2&&<section className="screen multi-step"><Title over="우리 가족 이야기 💬" title="질문을 하나 골라 대답해 줘!" sub="보호자와 아이가 함께 골라 보세요"/><div style={{maxWidth:760,margin:"0 auto 32px",display:"grid",gap:14}}>{QUESTIONS.map(q=><button key={q} className={`question-btn ${question===q?"picked":""}`} onClick={()=>{setQuestion(q);setAnswer("")}}><span className="q-check">✓</span><span>{q}</span></button>)}</div>{question&&<div style={{maxWidth:760,margin:"0 auto"}}><label style={{display:"grid",gap:10,fontWeight:700}}><span>우리 가족의 대답</span><textarea className="answer-box" value={answer} onChange={e=>setAnswer(e.target.value)} maxLength={300} rows={4} placeholder="예: 저녁에 다 같이 밥 먹을 때가 제일 좋아요!" spellCheck={false}/></label></div>}
     {error&&<p className="error">{error}</p>}
-    <Actions back={()=>go(1)} next={()=>go(3)} disabled={!question||!answer.trim()} label="동화 만들어 줘! ✨"/></section>}
+    <Actions back={()=>go(1)} next={createStory} disabled={!question||!answer.trim()||creating} label={creating?"만드는 중...":"동화 만들어 줘! ✨"}/></section>}
 
-    {/* STEP 3: 동화 생성 대기 → 결과 보기 */}
+    {/* STEP 3: 동화 생성 완료 → 결과 보기 */}
     {step===3&&story&&<ReaderBook story={story} isFromGallery={isFromGallery} onSave={handleSaveStory} onDecorate={()=>go(4)}/>}
     {step===4&&story&&<TouchDecorateBook story={story} finish={keepStory}/>}
     </>}
-    {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}
+    {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><p style={{fontSize:16,color:"#a27b88",margin:"4px 0 0"}}>{progressPercent}% 완성 중이에요</p><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}
     <style>{css}</style></main>
 }
 
