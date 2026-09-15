@@ -170,20 +170,27 @@ export default function Home(){
     {view==="gallery"?<Gallery stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory}/>:<>
 
     {/* STEP 0: 인트로 */}
-    {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 우리 가족 동화 놀이터야!</small><h1 className="sentence-reveal">가족이 함께<br/>세상에 하나뿐인<br/>동화를 만들어 볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
+    {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 난 포동이야!</small><h1 className="sentence-reveal">나와 같이<br/>우리 가족만의<br/>동화를 만들어볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
 
     {/* STEP 1: 가족 소개 (2장 사진 + 캐릭터 옵션) */}
-    {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 그림을 올려줘!" sub="보호자가 그린 자녀 얼굴, 자녀가 그린 보호자 얼굴 각 1장씩"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
-      <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 자녀 카드":"👨 보호자 카드"}</h3>
-      <p style={{fontSize:13,color:"#8f6d78",margin:"0 0 12px"}}>{i===0?"보호자가 그린 자녀의 얼굴 사진을 올려 줘":"자녀가 그린 보호자의 얼굴 사진을 올려 줘"}</p>
+    {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 사진을 올려줘!"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
+      <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 우리 아이 카드":"👨 엄마·아빠 카드"}</h3>
       <div className={`mini-drop ${c.photo?"filled":""}`}>
-        {c.photo?<img src={c.photo} alt={`${i+1}번째 얼굴`}/>:<div><span>🖼</span><strong>얼굴 그림</strong></div>}
         <input id={`camera-${i}`} type="file" accept="image/*" capture="environment" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
-        <input id={`library-${i}`} type="file" accept="image/*" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
-        <div><label htmlFor={`camera-${i}`}>📸 직접 찍기</label><label htmlFor={`library-${i}`}>🖼 앨범에서</label></div>
+        {c.photo?(
+          <>
+            <img src={c.photo} alt={i===0?"우리 아이 사진":"엄마·아빠 사진"}/>
+            <label htmlFor={`camera-${i}`} className="camera-retake">📸 다시 찍기</label>
+          </>
+        ):(
+          <label htmlFor={`camera-${i}`} className="camera-trigger">
+            <span className="cam-icon">📸</span>
+            <strong>사진 찍기</strong>
+          </label>
+        )}
       </div>
-      <label>이름 <em>필수</em><input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 엄마 이름"}/></label>
-      <div className="option-row"><span>{i===0?"성별":"역할"}</span><div>{(i===0?childKindOptions:guardianKindOptions).map(k=><button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k})}>{k}</button>)}</div></div>
+      <label>이름 <em>필수</em><input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 엄마 또는 아빠 이름"}/></label>
+      <div className="option-row"><span>{i===0?"성별":"엄마·아빠"}</span><div>{(i===0?childKindOptions:guardianKindOptions).map(k=><button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k})}>{k}</button>)}</div></div>
       <div className="option-row"><span>머리 길이</span><div>{hairOptions.map(h=><button type="button" key={h} className={c.hair===h?"picked":""} onClick={()=>updateChar(i,{hair:h})}>{h}</button>)}</div></div>
       <div className="option-row"><span>머리 색</span><div>{hairColorOptions.map(h=><button type="button" key={h} className={c.hairColor===h?"picked":""} onClick={()=>updateChar(i,{hairColor:h})}>{h}</button>)}</div></div>
     </article>)}</div>
@@ -234,4 +241,6 @@ const css=`
 .decorate{padding-top:22px;overflow:visible}.sticker-help{text-align:center;margin:0 auto 12px;display:flex;justify-content:center;align-items:baseline;gap:10px;flex-wrap:wrap}.sticker-help strong{font-size:20px}.sticker-help span{color:#896d76}.sticker-tray{width:min(1060px,100%);margin:0 auto 16px;padding:10px 14px;display:flex;gap:10px;overflow-x:auto;background:#fffaf7d9;border:1px solid #eccfd8;border-radius:22px;box-shadow:0 12px 30px #71374b16;touch-action:none}.sticker-tray button{width:82px;height:82px;flex:0 0 82px;border:0;background:#fff0f4;border-radius:17px;padding:5px;touch-action:none}.sticker-tray img{width:100%;height:100%;object-fit:contain;pointer-events:none}.decorate .book{position:relative}.placed-sticker{position:absolute;z-index:12;transform:translate(-50%,-50%);padding:0;border:0;background:none;touch-action:none;filter:drop-shadow(0 5px 5px #5e354b3d)}.placed-sticker img{display:block;width:100%;height:auto;pointer-events:none}.placed-sticker.selected{outline:3px dashed #ff5f91;outline-offset:5px;border-radius:12px}.sticker-tools{position:sticky;z-index:15;bottom:14px;margin:-4px auto 0;width:max-content;display:flex;gap:6px;background:#3d2940e8;padding:7px;border-radius:99px;box-shadow:0 9px 28px #3d294055}.sticker-tools button{border:0;background:#fff;color:#563f58;border-radius:99px;padding:8px 13px;font-weight:700}.sticker-tools button:last-child{color:#c52e61}.sticker-ghost{position:fixed;z-index:100;width:120px;max-height:150px;object-fit:contain;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 10px 12px #3d294055)}.item-grid{width:min(1380px,100%);grid-template-columns:repeat(3,minmax(0,1fr))}.hero-grid{width:min(1180px,100%)}@media(max-width:850px){.decorate{padding:16px 10px}.sticker-help{font-size:14px}.sticker-help strong{font-size:18px}.sticker-tray button{width:68px;height:68px;flex-basis:68px}.decorate .book{height:calc(100svh - 275px);min-height:520px}.placed-sticker{max-width:25vw}.item-grid{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.item-card{scroll-snap-align:center}}@media(max-width:560px){.item-grid{grid-template-columns:1fr;overflow:visible}}
 /* question selection & answer */
 .question-btn{display:flex;align-items:center;gap:14px;border:2px solid #ead2da;background:#fff8fa;border-radius:18px;padding:18px 20px;text-align:left;font-size:16px;line-height:1.5;transition:all .18s}.question-btn:hover{border-color:#f09fb8;background:#fff0f5}.question-btn.picked{border-color:var(--rose);background:linear-gradient(145deg,#fff0f5,#ffdce8);font-weight:700}.q-check{width:24px;height:24px;min-width:24px;border-radius:50%;border:2px solid #ddbfca;display:grid;place-items:center;color:transparent;font-size:14px}.question-btn.picked .q-check{background:var(--rose);border-color:var(--rose);color:#fff}.answer-box{display:block;width:100%;border:2px solid #ead2da;border-radius:16px;background:#fffafc;padding:16px;font-size:16px;line-height:1.65;resize:vertical;outline:none;margin-top:4px;min-height:100px;transition:border-color .2s}.answer-box:focus{border-color:var(--rose)}
+/* single camera trigger */
+.camera-trigger{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;background:linear-gradient(145deg,#fff5f8,#ffeef3);transition:all .2s ease}.camera-trigger:hover{background:linear-gradient(145deg,#ffeaf1,#ffe4ed);transform:scale(1.01)}.camera-trigger .cam-icon{font-size:52px;filter:drop-shadow(0 6px 14px #e5729738)}.camera-trigger strong{font-size:19px;color:#ba3e6a;font-weight:700;letter-spacing:-.01em}.camera-retake{position:absolute;bottom:14px;background:#3d2940db;backdrop-filter:blur(6px);color:#fff;padding:9px 18px;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px #00000030;transition:all .15s}.camera-retake:hover{background:#3d2940f5;transform:scale(1.04)}
 `;
