@@ -25,4 +25,11 @@ export function rowToStory(row:any):StoryRecord{
  try{chars=JSON.parse(row.characters_json||"[]");}catch{}
  return {...row,pages:JSON.parse(row.pages_json),characters:chars,question:row.question||"",answer:row.answer||"",...decoration};
 }
-export function openAIKey(){const key=(env as any).OPENAI_API_KEY||process.env.OPENAI_API_KEY;if(!key)throw new Error("OPENAI_API_KEY is not configured");return key}
+export function openAIKey(){
+ const key=(env as any)?.OPENAI_API_KEY||(globalThis as any)?.OPENAI_API_KEY||(typeof process!=="undefined"?process.env?.OPENAI_API_KEY:undefined);
+ if(!key){
+  const keys=Object.keys(env||{}).join(", ");
+  throw new Error(`OPENAI_API_KEY is not configured (env keys: [${keys}])`);
+ }
+ return key;
+}

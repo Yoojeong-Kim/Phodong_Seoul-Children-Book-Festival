@@ -27,6 +27,14 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const rawEnv = env as any;
+    if (rawEnv.OPENAI_API_KEY) {
+      (globalThis as any).OPENAI_API_KEY = rawEnv.OPENAI_API_KEY;
+      if (typeof process !== "undefined" && process.env) {
+        process.env.OPENAI_API_KEY = rawEnv.OPENAI_API_KEY;
+      }
+    }
+
     const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {
