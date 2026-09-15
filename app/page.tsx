@@ -173,7 +173,7 @@ export default function Home(){
     {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 난 포동이야!</small><h1 className="sentence-reveal">나와 같이<br/>우리 가족만의<br/>동화를 만들어볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
 
     {/* STEP 1: 가족 소개 (2장 사진 + 캐릭터 옵션) */}
-    {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 사진을 올려줘!"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
+    {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 그림 사진을 올려줘!"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
       <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 우리 아이 카드":"👨 엄마·아빠 카드"}</h3>
       <div className={`mini-drop ${c.photo?"filled":""}`}>
         <input id={`camera-${i}`} type="file" accept="image/*" capture="environment" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
