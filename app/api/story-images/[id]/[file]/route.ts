@@ -3,7 +3,7 @@ import { ensureStoryTables } from "../../../../../lib/story-store";
 
 export async function GET(_:Request,{params}:{params:Promise<{id:string,file:string}>}){
  const {id,file}=await params;
- if(!/^[0-9a-f-]{36}$/.test(id)||!/^page-[1-7](?:-style-v[2-4])?\.png$/.test(file))return new Response("Not found",{status:404});
+ if(!/^[0-9a-f-]{36}$/.test(id)||!/^(?:page-[1-7](?:-style-v[2-4])?|cover-v\d+)\.png$/.test(file))return new Response("Not found",{status:404});
  await ensureStoryTables();
  const key=`stories/${id}/${file}`;
  const row=await env.DB.prepare("SELECT b64 FROM story_images WHERE key=?").bind(key).first<{b64:string}>();

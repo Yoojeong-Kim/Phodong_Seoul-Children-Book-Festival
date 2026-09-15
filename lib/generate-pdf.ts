@@ -59,19 +59,32 @@ export async function downloadStoryPdf(story: PdfStoryData) {
   // 스토리
   story.pages.forEach((p, i) => {
     const pageTitle = i === 0 ? story.title : p.title;
-    pagesHtml.push(`
-      <div class="pdf-page story-page">
-        <div class="img-side">
-          ${imgTag(p.image_url, pageTitle)}
-        </div>
-        <div class="text-side">
-          <small>${esc(story.child_name)}의 동화</small>
-          <span class="page-num">${i + 1} / ${story.pages.length}</span>
-          <h2>${esc(pageTitle)}</h2>
-          <hr/>
-          <p>${esc(p.text)}</p>
-        </div>
-      </div>`);
+    if (!p.image_url) {
+      pagesHtml.push(`
+        <div class="pdf-page story-page text-only-pdf-page">
+          <div class="text-side text-only-side">
+            <span class="page-num">${i + 1} / ${story.pages.length}</span>
+            <small>${esc(story.child_name)}의 동화</small>
+            <h2>${esc(pageTitle)}</h2>
+            <hr/>
+            <p>${esc(p.text)}</p>
+          </div>
+        </div>`);
+    } else {
+      pagesHtml.push(`
+        <div class="pdf-page story-page">
+          <div class="img-side">
+            ${imgTag(p.image_url, pageTitle)}
+          </div>
+          <div class="text-side">
+            <small>${esc(story.child_name)}의 동화</small>
+            <span class="page-num">${i + 1} / ${story.pages.length}</span>
+            <h2>${esc(pageTitle)}</h2>
+            <hr/>
+            <p>${esc(p.text)}</p>
+          </div>
+        </div>`);
+    }
   });
 
 
@@ -151,6 +164,33 @@ export async function downloadStoryPdf(story: PdfStoryData) {
         color: #432e3a;
         word-break: keep-all;
         margin: 0;
+      }
+      .text-only-pdf-page {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 30%, #ffffff 0%, #fffdfb 60%, #fff8f3 100%) !important;
+      }
+      .text-only-side {
+        width: 82% !important;
+        max-width: 880px;
+        padding: 50px 30px !important;
+        text-align: center;
+        margin: auto;
+      }
+      .text-only-side h2 {
+        font-size: 36px !important;
+        margin: 12px 0 16px !important;
+      }
+      .text-only-side hr {
+        width: 120px;
+        margin: 0 auto 24px !important;
+        border-top: 3px solid #ffb3cc;
+      }
+      .text-only-side p {
+        font-size: 27px !important;
+        line-height: 2.15 !important;
+        color: #3d2940 !important;
       }
       .cover-text-side {
         background: linear-gradient(160deg, #fff7fa, #ffe8f0);

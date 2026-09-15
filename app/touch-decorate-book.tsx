@@ -5,7 +5,18 @@ import type {Decoration,Sticker,StoryData,Stroke} from "./story-experience";
 const stickerSources=Array.from({length:9},(_,i)=>`/stickers/sticker-${String(i+1).padStart(2,"0")}.png`);
 const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d2940"];
 
-function BookPage({story,page}:{story:StoryData;page:number}){const p=story.pages[page];return <><div className="visual">{p.image_url?<img src={p.image_url} alt={`${p.title} 삽화`}/>:<div className="image-wait">삽화를 불러오고 있어</div>}<span>{page+1} / {story.pages.length}</span></div><article><small>{story.child_name}의 동화</small><h2>{page===0?story.title:p.title}</h2><p>{p.text}</p></article></>}
+function BookPage({story,page}:{story:StoryData;page:number}){
+ const p=story.pages[page];
+ return <article className="story-text-page">
+  <div className="page-header">
+   <small>{story.child_name}의 동화</small>
+   <span className="page-indicator">{page+1} / {story.pages.length}쪽</span>
+  </div>
+  <h2>{p.title}</h2>
+  <div className="text-divider">✦ ✦ ✦</div>
+  <p>{p.text}</p>
+ </article>;
+}
 
 export function TouchDecorateBook({story,finish}:{story:StoryData;finish:(d:Decoration)=>Promise<void>}){
  const [page,setPage]=useState(0),[mode,setMode]=useState<"pen"|"sticker">("pen"),[stickers,setStickers]=useState<Sticker[]>(story.stickers||[]),[drawings,setDrawings]=useState<Stroke[]>(story.drawings||[]),[color,setColor]=useState(colors[0]),[width,setWidth]=useState(18),[ghost,setGhost]=useState<{src:string;x:number;y:number}|null>(null),[saving,setSaving]=useState(false),bookRef=useRef<HTMLDivElement>(null),drawing=useRef<Stroke|null>(null),pointers=useRef(new Map<number,{id:string;x:number;y:number}>()),pinch=useRef<{id:string;distance:number;size:number}|null>(null);
@@ -20,8 +31,9 @@ export function TouchDecorateBook({story,finish}:{story:StoryData;finish:(d:Deco
  function stickerMove(e:PointerEvent<HTMLDivElement>,id:string){if(!e.currentTarget.hasPointerCapture(e.pointerId))return;pointers.current.set(e.pointerId,{id,x:e.clientX,y:e.clientY});const same=[...pointers.current.values()].filter(p=>p.id===id);if(same.length>=2){const [a,b]=same,base=pinch.current;if(base?.id===id&&base.distance>0){const size=Math.max(55,Math.min(240,base.size*Math.hypot(a.x-b.x,a.y-b.y)/base.distance));setStickers(v=>v.map(s=>s.id===id?{...s,size}:s))}}else{const p=pos(e);if(p)setStickers(v=>v.map(s=>s.id===id?{...s,x:p.x,y:p.y}:s))}}
  function stickerUp(e:PointerEvent<HTMLDivElement>,id:string){pointers.current.delete(e.pointerId);if([...pointers.current.values()].filter(p=>p.id===id).length<2)pinch.current=null}
  const pageStrokes=drawings.filter(s=>s.page===page),pageStickers=stickers.filter(s=>s.page===page);
+ const hasImage=!!story.pages[page]?.image_url;
  return <section className="screen story decorator"><div className="decorate-head"><div><small>포동이의 동화책장 🎨</small><h2>내 동화책을 마음껏 꾸며 봐</h2></div><div className="mode-tabs"><button className={mode==="pen"?"on":""} onClick={()=>setMode("pen")}>✏️ 펜으로 그리기</button><button className={mode==="sticker"?"on":""} onClick={()=>setMode("sticker")}>🌟 스티커 붙이기</button></div></div>{mode==="pen"?<div className="pen-tools">{colors.map(c=><button key={c} className={color===c?"on":""} style={{background:c}} onClick={()=>setColor(c)} aria-label={`${c} 색상`}/>)}<button className={width===10?"on":""} onClick={()=>setWidth(10)}>가는 펜</button><button className={width===18?"on":""} onClick={()=>setWidth(18)}>보통 펜</button><button className={width===28?"on":""} onClick={()=>setWidth(28)}>굵은 펜</button><button onClick={()=>setDrawings(v=>v.filter(s=>s.page!==page))}>이 페이지 지우기</button></div>:<><p className="pinch-tip">한 손가락으로 옮기고, 두 손가락으로 크기를 조절해 봐.</p><div className="sticker-tray">{stickerSources.map((src,i)=><button key={src} aria-label={`${i+1}번째 스티커`} onPointerDown={e=>startNew(e,src)} onPointerMove={moveNew} onPointerUp={e=>endNew(e,src)}><img src={src} alt="" draggable={false}/></button>)}</div></>}
- <div ref={bookRef} className="book decorate-canvas"><BookPage story={story} page={page}/><svg className={`drawing-layer ${mode==="pen"?"active":""}`} viewBox="0 0 100 100" preserveAspectRatio="none" onPointerDown={penStart} onPointerMove={penMove} onPointerUp={penEnd} onPointerCancel={penEnd}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>{pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size}} onPointerDown={e=>stickerDown(e,s.id)} onPointerMove={e=>stickerMove(e,s.id)} onPointerUp={e=>stickerUp(e,s.id)} onPointerCancel={e=>stickerUp(e,s.id)}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/><button className="remove-sticker" aria-label="스티커 삭제" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setStickers(v=>v.filter(x=>x.id!==s.id))}}>×</button></div>)}</div>
+ <div ref={bookRef} className="book decorate-canvas text-only-book"><BookPage story={story} page={page}/><svg className={`drawing-layer ${mode==="pen"?"active":""}`} viewBox="0 0 100 100" preserveAspectRatio="none" onPointerDown={penStart} onPointerMove={penMove} onPointerUp={penEnd} onPointerCancel={penEnd}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>{pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size}} onPointerDown={e=>stickerDown(e,s.id)} onPointerMove={e=>stickerMove(e,s.id)} onPointerUp={e=>stickerUp(e,s.id)} onPointerCancel={e=>stickerUp(e,s.id)}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/><button className="remove-sticker" aria-label="스티커 삭제" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setStickers(v=>v.filter(x=>x.id!==s.id))}}>×</button></div>)}</div>
  <div className="decorate-footer"><button disabled={page===0} onClick={()=>setPage(v=>v-1)}>← 앞 페이지</button><strong>{page+1} / {story.pages.length}</strong>{page<story.pages.length-1?<button onClick={()=>setPage(v=>v+1)}>다음 페이지 →</button>:<button className="finish" disabled={saving} onClick={async()=>{setSaving(true);await finish({stickers,drawings});setSaving(false)}}>{saving?"저장 중…":"꾸미기 완료! 책장으로"}</button>}</div>{ghost&&<img className="sticker-ghost" src={ghost.src} style={{left:ghost.x,top:ghost.y}} alt=""/>}<style>{styles}</style></section>
 }
 
@@ -68,4 +80,13 @@ const styles=`
  .decorate-footer button{font-size:12px;padding:8px 12px}
  .sticker-tray button{width:58px;height:58px;flex-basis:58px}
 }
+/* text only storybook layout */
+.decorate-canvas.text-only-book{grid-template-columns:1fr!important;display:flex!important;flex-direction:column!important;justify-content:space-between!important;background:radial-gradient(circle at 50% 30%,#ffffff 0%,#fffdfb 60%,#fff7f2 100%)!important;padding:clamp(28px,4vw,56px) clamp(24px,5vw,72px) 80px!important}
+.story-text-page{width:100%;max-width:820px;margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 0}
+.story-text-page .page-header{display:flex;justify-content:space-between;width:100%;align-items:center;margin-bottom:20px}
+.story-text-page .page-header small{color:#f55f91;font-weight:700;font-size:16px}
+.story-text-page .page-indicator{background:#ffe6ef;color:#c73568;padding:4px 14px;border-radius:99px;font-weight:800;font-size:14px}
+.story-text-page h2{font-size:clamp(26px,4vw,42px);color:#3d2940;margin:0 0 14px;font-weight:800;letter-spacing:-.02em}
+.story-text-page .text-divider{color:#f9a8c4;font-size:15px;letter-spacing:8px;margin-bottom:24px}
+.story-text-page p{font-size:clamp(20px,2.8vw,30px);line-height:2.05;color:#493545;word-break:keep-all;text-wrap:balance;margin:0;font-weight:500;font-family:"Gowun Dodum",sans-serif}
 `;
