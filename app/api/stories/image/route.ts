@@ -1,4 +1,4 @@
-﻿import { env } from "cloudflare:workers";
+import { env } from "cloudflare:workers";
 import { ensureStoryTables, openAIKey, rowToStory } from "../../../../lib/story-store";
 
 export async function POST(req:Request){
@@ -66,11 +66,42 @@ ${STYLE}
 
 [Composition]: Children''s book page illustration. Both characters featured in a warm, storybook scene.`;
 
-  const response=await fetch("https://api.openai.com/v1/images/generations",{
-   method:"POST",
-   headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},
-   body:JSON.stringify({model:"gpt-image-2",prompt:fullPrompt.substring(0,4000),size:"1024x1024",quality:"medium"})
-  });
+  let response:Response;
+  if (page > 0) {
+    const coverRef = await env.DB.prepare("SELECT b64 FROM story_images WHERE key=?").bind(`stories/${id}/cover-v1.png`).first<{b64:string}>();
+    if (!coverRef) {
+      return Response.json({error:"표지 그림이 아직 없습니다. 순서대로 만들어주세요."},{status:409});
+    }
+    const bin = atob(coverRef.b64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    
+    const form = new FormData();
+    form.append("model", "gpt-image-2");
+    form.append("prompt", fullPrompt.substring(0,4000));
+    form.append("size", "1024x1024");
+    form.append("quality", "medium");
+    form.append("response_format", "b64_json");
+    form.append("image", new Blob([bytes], {type:"image/png"}), "reference.png");
+
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${openAIKey()}` },
+      body: form
+    });
+  } else {
+    response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${openAIKey()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-image-2",
+        prompt: fullPrompt.substring(0,4000),
+        size: "1024x1024",
+        quality: "medium",
+        response_format: "b64_json"
+      })
+    });
+  }
 
   if(!response.ok){const detail=await response.text();console.error("image_api",response.status,detail.slice(0,500));throw new Error(`이미지 API 오류 ${response.status}`);}
   const data=await response.json() as any;

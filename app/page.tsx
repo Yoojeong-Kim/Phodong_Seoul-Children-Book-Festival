@@ -1,7 +1,6 @@
 "use client";
 import {ChangeEvent,useRef,useState,useEffect} from "react";
 import {Decoration,ReaderBook,Stroke} from "./story-experience";
-import {TouchDecorateBook} from "./touch-decorate-book";
 import {downloadStoryPdf} from "../lib/generate-pdf";
 
 type Page={page:number;title:string;text:string;image_prompt:string;image_url?:string};
@@ -327,9 +326,8 @@ export default function Home(){
     {error&&<p className="error">{error}</p>}
     <Actions back={()=>go(1)} next={createStory} disabled={!question||!answer.trim()||creating} label={creating?"만드는 중...":"동화 만들어 줘! ✨"}/></section>}
 
-    {/* STEP 3: 동화 생성 완료 → 결과 보기 */}
-    {step===3&&story&&<ReaderBook story={story} isFromGallery={isFromGallery} onSave={handleSaveStory} onDecorate={()=>go(4)}/>}
-    {step===4&&story&&<TouchDecorateBook story={story} finish={keepStory}/>}
+    {/* STEP 3: 동화 생성 완료 및 결과 보기 */}
+    {step===3&&story&&<ReaderBook story={story} isFromGallery={isFromGallery} onSave={handleSaveStory} />}
     </>}
     {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><p style={{fontSize:16,color:"#a27b88",margin:"4px 0 0"}}>{progressPercent}% 완성 중이에요</p><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}
     

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import {PointerEvent,useRef,useState} from "react";
 import {downloadStoryPdf} from "../lib/generate-pdf";
 export type StoryPage={page:number;title:string;text:string;image_prompt:string;image_url?:string};
@@ -82,10 +82,10 @@ function FinalPolaroidPage({story}:{story:StoryData}){
   </article>;
 }
 
-export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:{story:StoryData;onSave:()=>void;onDecorate?:()=>void;isFromGallery?:boolean;initialItems?:{photo:string;name:string;reason:string}[]}){
+export function ReaderBook({story,onSave,initialItems}:{story:StoryData;onSave:()=>void;initialItems?:{photo:string;name:string;reason:string}[]}){
  const [showCover,setShowCover]=useState(true);
  const [pdfLoading,setPdfLoading]=useState(false);
- const totalPages = story.pages.length + 1; // 5 text pages + 1 polaroid final page = 6 pages
+ const totalPages = story.pages.length + 1; // 3 text pages + 1 polaroid final page = 4 pages
  const [page,setPage]=useState(0),[turning,setTurning]=useState<"next"|"prev"|null>(null),touch=useRef(0);
 
  // 연락처 수집 모달 상태
@@ -106,7 +106,6 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
   setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480);
  }
  async function handlePdf(){setPdfLoading(true);try{await downloadStoryPdf(story)}finally{setPdfLoading(false)}}
- const pageStrokes=(story.drawings||[]).filter(s=>s.page===page),pageStickers=(story.stickers||[]).filter(s=>s.page===page);
  const coverImg=(story as any).cover_image_url||story.pages[0]?.image_url;
 
  async function submitContact(e:React.FormEvent){
@@ -167,10 +166,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
 
  return <section className="screen story reader">
   <div className={`book ${isPolaroidPage?"polaroid-page-mode":""} ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
-   {isFromGallery&&onDecorate&&<button className="gallery-decorate-badge" onClick={onDecorate}>🎨 이 동화 꾸미기</button>}
    {isPolaroidPage ? <FinalPolaroidPage story={story}/> : <BookPage story={story} page={page}/>}
-   <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
-   {pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size,pointerEvents:"none"}}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></div>)}
      <nav className="book-nav">
       <div className="nav-side left">
        <button className="nav-btn prev-btn" onClick={()=>turn(page-1)}>← {page===0?"표지로":"앞 페이지"}</button>
@@ -236,20 +232,6 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
   <style>{styles}</style>
  </section>
 }
-
-export function DecorateBook({story,finish}:{story:StoryData;finish:(d:Decoration)=>Promise<void>}){const [page,setPage]=useState(0),[mode,setMode]=useState<"pen"|"sticker">("pen"),[stickers,setStickers]=useState<Sticker[]>(story.stickers||[]),[drawings,setDrawings]=useState<Stroke[]>(story.drawings||[]),[selected,setSelected]=useState(""),[color,setColor]=useState(colors[0]),[width,setWidth]=useState(7),[ghost,setGhost]=useState<{src:string;x:number;y:number}|null>(null),[saving,setSaving]=useState(false),bookRef=useRef<HTMLDivElement>(null),drawing=useRef<Stroke|null>(null);
- function pos(e:PointerEvent){const r=bookRef.current?.getBoundingClientRect();if(!r)return null;return {x:Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100)),y:Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100)),inside:e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom}}
- function penStart(e:PointerEvent<SVGSVGElement>){if(mode!=="pen")return;e.currentTarget.setPointerCapture(e.pointerId);const p=pos(e);if(!p)return;drawing.current={id:crypto.randomUUID(),page,color,width,points:[p]};setDrawings(v=>[...v,drawing.current!])}
- function penMove(e:PointerEvent<SVGSVGElement>){if(!drawing.current||!e.currentTarget.hasPointerCapture(e.pointerId))return;const p=pos(e);if(!p)return;drawing.current={...drawing.current,points:[...drawing.current.points,p]};const next=drawing.current;setDrawings(v=>v.map(s=>s.id===next!.id?next!:s))}
- function penEnd(){drawing.current=null}
- function startNew(e:PointerEvent<HTMLButtonElement>,src:string){e.currentTarget.setPointerCapture(e.pointerId);setGhost({src,x:e.clientX,y:e.clientY})}
- function moveNew(e:PointerEvent){if(ghost)setGhost(v=>v&&({...v,x:e.clientX,y:e.clientY}))}
- function endNew(e:PointerEvent,src:string){const p=pos(e);setGhost(null);if(p?.inside){const id=crypto.randomUUID();setStickers(v=>[...v,{id,src,page,x:p.x,y:p.y,size:112}]);setSelected(id)}}
- function moveSticker(e:PointerEvent<HTMLButtonElement>,id:string){if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const p=pos(e);if(p)setStickers(v=>v.map(s=>s.id===id?{...s,x:p.x,y:p.y}:s))}
- const pageStrokes=drawings.filter(s=>s.page===page),pageStickers=stickers.filter(s=>s.page===page);
- return <section className="screen story decorator"><div className="decorate-head"><div><small>포동이의 동화책장 🎨</small><h2>내 동화책을 마음껏 꾸며 봐</h2></div><div className="mode-tabs"><button className={mode==="pen"?"on":""} onClick={()=>{setMode("pen");setSelected("")}}>✏️ 펜으로 그리기</button><button className={mode==="sticker"?"on":""} onClick={()=>setMode("sticker")}>🌟 스티커 붙이기</button></div></div>{mode==="pen"?<div className="pen-tools">{colors.map(c=><button key={c} className={color===c?"on":""} style={{background:c}} onClick={()=>setColor(c)} aria-label={`${c} 색상`}/>)}<button className={width===4?"on":""} onClick={()=>setWidth(4)}>가는 펜</button><button className={width===7?"on":""} onClick={()=>setWidth(7)}>보통 펜</button><button className={width===12?"on":""} onClick={()=>setWidth(12)}>굵은 펜</button><button onClick={()=>setDrawings(v=>v.filter(s=>s.page!==page))}>이 페이지 지우기</button></div>:<div className="sticker-tray">{stickerSources.map((src,i)=><button key={src} aria-label={`${i+1}번째 스티커`} onPointerDown={e=>startNew(e,src)} onPointerMove={moveNew} onPointerUp={e=>endNew(e,src)}><img src={src} alt="" draggable={false}/></button>)}</div>}
- <div ref={bookRef} className="book decorate-canvas" onPointerDown={()=>selected&&setSelected("")}><BookPage story={story} page={page}/><svg className={`drawing-layer ${mode==="pen"?"active":""}`} viewBox="0 0 100 100" preserveAspectRatio="none" onPointerDown={penStart} onPointerMove={penMove} onPointerUp={penEnd} onPointerCancel={penEnd}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/7} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>{pageStickers.map(s=><button key={s.id} className={`placed-sticker ${selected===s.id?"selected":""}`} style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size}} onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);setSelected(s.id)}} onPointerMove={e=>moveSticker(e,s.id)}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></button>)}</div>
- <div className="decorate-footer"><button disabled={page===0} onClick={()=>{setPage(v=>v-1);setSelected("")}}>← 앞 페이지</button><strong>{page+1} / {story.pages.length}</strong>{page<story.pages.length-1?<button onClick={()=>{setPage(v=>v+1);setSelected("")}}>다음 페이지 →</button>:<button className="finish" disabled={saving} onClick={async()=>{setSaving(true);await finish({stickers,drawings});setSaving(false)}}>{saving?"저장 중…":"꾸미기 완료! 책장으로"}</button>}</div>{selected&&<div className="sticker-tools"><button onClick={()=>setStickers(v=>v.map(s=>s.id===selected?{...s,size:Math.max(70,s.size-18)}:s))}>작게</button><button onClick={()=>setStickers(v=>v.map(s=>s.id===selected?{...s,size:Math.min(220,s.size+18)}:s))}>크게</button><button onClick={()=>{setStickers(v=>v.filter(s=>s.id!==selected));setSelected("")}}>떼기</button></div>}{ghost&&<img className="sticker-ghost" src={ghost.src} style={{left:ghost.x,top:ghost.y}} alt=""/>}<style>{styles}</style></section>}
 
 const styles=`
 .reader{padding:clamp(10px,1.6vw,20px) clamp(10px,2vw,24px)!important;display:flex;align-items:center;justify-content:center}
@@ -446,3 +428,4 @@ const styles=`
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{opacity:0;transform:translateY(24px) scale(0.96)}to{opacity:1;transform:none}}
 `;
+
