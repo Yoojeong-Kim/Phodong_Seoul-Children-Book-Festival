@@ -2,10 +2,27 @@
 import {ChangeEvent,useRef,useState,useEffect} from "react";
 import {Decoration,ReaderBook,Stroke} from "./story-experience";
 import {TouchDecorateBook} from "./touch-decorate-book";
+import {downloadStoryPdf} from "../lib/generate-pdf";
 
 type Page={page:number;title:string;text:string;image_prompt:string;image_url?:string};
 type Sticker={id:string;src:string;page:number;x:number;y:number;size:number};
-type Story={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:Page[];characters?:any[];stickers?:Sticker[];drawings?:Stroke[];status:string;created_at:number};
+type Story={
+  id:string;
+  child_name:string;
+  question:string;
+  answer:string;
+  title:string;
+  summary:string;
+  pages:Page[];
+  characters?:any[];
+  stickers?:Sticker[];
+  drawings?:Stroke[];
+  guardian_contact_name?:string;
+  guardian_phone?:string;
+  guardian_email?:string;
+  status:string;
+  created_at:number;
+};
 
 type CharDraft={
   photo:string;file:File|null;name:string;
@@ -50,7 +67,7 @@ export default function Home(){
   const [entered,setEntered]=useState(false);
   const [entering,setEntering]=useState(false);
   const [step,setStep]=useState(0);
-  const [view,setView]=useState<"make"|"gallery">("make");
+  const [view,setView]=useState<"make"|"gallery"|"admin">("make");
   const [chars,setChars]=useState<CharDraft[]>([newChar("child"),newChar("guardian")]);
   const [question,setQuestion]=useState("");
   const [answer,setAnswer]=useState("");
@@ -62,6 +79,10 @@ export default function Home(){
   const [stories,setStories]=useState<Story[]>([]);
   const [loadingGallery,setLoadingGallery]=useState(false);
   const [isFromGallery,setIsFromGallery]=useState(false);
+  const [showAdminPinModal,setShowAdminPinModal]=useState(false);
+  const [adminPin,setAdminPin]=useState("");
+  const [adminPinError,setAdminPinError]=useState("");
+  const [pdfGeneratingId,setPdfGeneratingId]=useState<string|null>(null);
 
   function resetAll(){
     setEntered(false);setEntering(false);setStep(0);setView("make");
@@ -174,6 +195,19 @@ export default function Home(){
   }
 
   async function openGallery(){setEntered(true);setView("gallery");setLoadingGallery(true);setError("");try{const r=await fetch("/api/stories");const d=await readApi(r);if(!r.ok)throw new Error(d.error);setStories(d.stories||[])}catch(e){setError(e instanceof Error?e.message:"동화를 불러오지 못했어.")}finally{setLoadingGallery(false)}}
+  async function loadAdminData(){setEntered(true);setView("admin");setLoadingGallery(true);setError("");try{const r=await fetch("/api/stories");const d=await readApi(r);if(!r.ok)throw new Error(d.error);setStories(d.stories||[])}catch(e){setError(e instanceof Error?e.message:"동화 목록을 불러오지 못했어.")}finally{setLoadingGallery(false)}}
+  function openAdminModal(){setAdminPin("");setAdminPinError("");setShowAdminPinModal(true)}
+  function handleAdminPinSubmit(e:React.FormEvent){e.preventDefault();if(adminPin==="2026"||adminPin==="0000"||adminPin==="admin"){setShowAdminPinModal(false);loadAdminData()}else{setAdminPinError("비밀번호가 일치하지 않습니다.")}}
+  async function handleAdminDownloadPdf(s:Story){
+    setPdfGeneratingId(s.id);
+    try{
+      await downloadStoryPdf(s as any);
+    }catch(err){
+      alert("PDF를 다운로드하는 중 오류가 발생했습니다.");
+    }finally{
+      setPdfGeneratingId(null);
+    }
+  }
   async function deleteStory(id:string){if(!window.confirm("이 동화를 책장에서 지울까?"))return;try{const r=await fetch(`/api/stories?id=${encodeURIComponent(id)}`,{method:"DELETE"});const d=await readApi(r);if(!r.ok)throw new Error(d.error||"동화를 지우지 못했어.");setStories(v=>v.filter(s=>s.id!==id))}catch(e){setError(e instanceof Error?e.message:"동화를 지우지 못했어.")}}
   function handleSaveStory(){alert("동화책장에 소중히 저장되었어! 📚\n언제든지 '우리 동화 책장'에서 다시 읽을 수 있어.");resetAll();}
   async function keepStory(decoration:Decoration){if(story){const res=await fetch("/api/stories",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:story.id,...decoration})});if(!res.ok){setError("꾸민 내용을 저장하지 못했어. 한 번만 다시 눌러 줘.");return}}setStory(null);await openGallery();window.scrollTo({top:0,behavior:"smooth"})}
@@ -181,8 +215,8 @@ export default function Home(){
 
   if(!entered)return <main className={`entrance ${entering?"leaving":""}`}><button className="entrance-stage" onClick={enter} aria-label="우리 가족 동화 들어가기"><span className="orb"><img src="/phodong-mascot.png" alt=""/><i/><b className="sp a">✦</b><b className="sp b">✦</b></span></button><style>{css}</style></main>;
 
-  return <main className="inside"><header><div className="header-logos"><button className="logo" onClick={resetAll} aria-label="처음으로"><img src="/phodong-logo.png" alt="포동"/></button><div className="header-divider"/><img className="library-logo" src="/library-logo.png" alt="지혜만들기 작은도서관"/></div>{view==="make"&&<div className="progress">{[0,1,2,3].map(i=><i key={i} className={i<=step?"on":""}/>)}</div>}<div className="header-right-space"/></header>
-    {view==="gallery"?<Gallery stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory}/>:<>
+  return <main className="inside"><header><div className="header-logos"><button className="logo" onClick={resetAll} aria-label="처음으로"><img src="/phodong-logo.png" alt="포동"/></button><div className="header-divider"/><img className="library-logo" src="/library-logo.png" alt="지혜만들기 작은도서관"/></div>{view==="make"&&<div className="progress">{[0,1,2,3].map(i=><i key={i} className={i<=step?"on":""}/>)}</div>}<div className="header-right-tools"><button className="admin-secret-btn" onClick={openAdminModal} title="관리자">🔒</button></div></header>
+    {view==="admin"?<AdminDashboard stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory} onDownloadPdf={handleAdminDownloadPdf} pdfGeneratingId={pdfGeneratingId} onExit={resetAll}/>:view==="gallery"?<Gallery stories={stories} loading={loadingGallery} error={error} open={openStory} remove={deleteStory}/>:<>
 
     {/* STEP 0: 인트로 */}
     {step===0&&<section className="screen hello"><img className="phodong-enter" src="/phodong-hello.png" alt="포동이"/><div><small>안녕, 난 포동이야!</small><h1 className="sentence-reveal">나와 같이<br/>우리 가족만의<br/>동화를 만들어볼래?</h1><div className="hello-actions reveal-buttons"><button className="next" onClick={()=>go(1)}>시작하기 →</button><button onClick={openGallery}>동화 책장 보기</button></div></div></section>}
@@ -289,12 +323,176 @@ export default function Home(){
     {step===4&&story&&<TouchDecorateBook story={story} finish={keepStory}/>}
     </>}
     {creating&&<div className="loading"><div><img src="/phodong-sleepy.png" alt="동화를 상상하는 포동"/><i/><h2>{progress}</h2><p style={{fontSize:16,color:"#a27b88",margin:"4px 0 0"}}>{progressPercent}% 완성 중이에요</p><div className="loadbar"><span style={{width:`${progressPercent}%`}}/></div></div></div>}
+    
+    {/* 비밀 관리자 PIN 모달 */}
+    {showAdminPinModal&&(
+      <div className="contact-modal-overlay">
+        <div className="contact-modal-card admin-pin-card">
+          <button type="button" className="modal-close-btn" onClick={()=>setShowAdminPinModal(false)}>✕</button>
+          <span className="modal-badge">Booth Staff Only</span>
+          <h3>관리자 모드 접속</h3>
+          <p className="modal-sub">부스 운영 담당자 전용 공간입니다. 비밀번호를 입력해주세요.</p>
+          <form onSubmit={handleAdminPinSubmit}>
+            <label className="admin-pin-label">
+              <span>비밀번호 (PIN)</span>
+              <input 
+                type="password" 
+                value={adminPin} 
+                onChange={e=>setAdminPin(e.target.value)} 
+                placeholder="비밀번호를 입력하세요" 
+                autoFocus 
+              />
+            </label>
+            {adminPinError&&<p className="contact-error">{adminPinError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="cancel-btn" onClick={()=>setShowAdminPinModal(false)}>취소</button>
+              <button type="submit" className="submit-btn next">접속하기</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
     <style>{css}</style></main>
 }
 
 function Title({over,title,sub}:{over:string,title:string,sub?:string}){return <div className="heading"><small>{over}</small><h2>{title}</h2>{sub&&<p>{sub}</p>}</div>}
 function Actions({back,next,disabled,label}:{back:()=>void,next:()=>void,disabled:boolean,label:string}){return <div className="actions"><button onClick={back}>뒤로</button><button className="next" disabled={disabled} onClick={next}>{label}</button></div>}
 function Gallery({stories,loading,error,open,remove}:{stories:Story[],loading:boolean,error:string,open:(s:Story)=>void,remove:(id:string)=>void}){return <section className="screen gallery"><Title over="📚 동화 책장" title="우리의 특별한 이야기"/>{loading?<p className="gallery-state">책장을 열고 있어…</p>:error?<p className="error">{error}</p>:stories.length===0?<p className="gallery-state">아직 첫 번째 동화를 기다리고 있어!</p>:<div className="shelf">{stories.map(s=><article key={s.id}><button className="story-card" onClick={()=>open(s)}>{s.pages[0]?.image_url&&<img src={s.pages[0].image_url} alt=""/>}<div><small>{s.child_name}</small><h3>{s.title}</h3><p>{s.question?.slice(0,28)}…</p></div></button><button className="delete-story" onClick={()=>remove(s.id)} aria-label={`${s.title} 삭제`}>삭제</button></article>)}</div>}</section>}
+
+function AdminDashboard({
+  stories,
+  loading,
+  error,
+  open,
+  remove,
+  onDownloadPdf,
+  pdfGeneratingId,
+  onExit
+}:{
+  stories:Story[];
+  loading:boolean;
+  error:string;
+  open:(s:Story)=>void;
+  remove:(id:string)=>void;
+  onDownloadPdf:(s:Story)=>void;
+  pdfGeneratingId:string|null;
+  onExit:()=>void;
+}){
+  const [filterText,setFilterText]=useState("");
+
+  const filtered = stories.filter(s=>{
+    if(!filterText.trim())return true;
+    const t = filterText.toLowerCase();
+    return (
+      (s.title||"").toLowerCase().includes(t) ||
+      (s.child_name||"").toLowerCase().includes(t) ||
+      (s.guardian_contact_name||"").toLowerCase().includes(t) ||
+      (s.guardian_phone||"").toLowerCase().includes(t) ||
+      (s.guardian_email||"").toLowerCase().includes(t)
+    );
+  });
+
+  return (
+    <section className="screen admin-screen">
+      <div className="admin-header-bar">
+        <div>
+          <span className="admin-tag">Staff Dashboard</span>
+          <h2>비밀 관리자 대시보드 🔐</h2>
+          <p>등록된 전체 가족 동화 목록과 보호자 연락처(이름, 휴대폰, 이메일) 및 PDF 다운로드를 관리합니다.</p>
+        </div>
+        <button className="admin-exit-btn" onClick={onExit}>대시보드 나가기 ✕</button>
+      </div>
+
+      <div className="admin-stats-row">
+        <div className="admin-stat-card">
+          <small>총 생성 동화</small>
+          <strong>{stories.length}편</strong>
+        </div>
+        <div className="admin-stat-card">
+          <small>연락처 수집 완료</small>
+          <strong>{stories.filter(s=>s.guardian_email).length}건</strong>
+        </div>
+        <div className="admin-stat-search">
+          <input 
+            type="text" 
+            placeholder="🔍 아이 이름, 보호자 성함, 전화번호, 이메일 검색..." 
+            value={filterText}
+            onChange={e=>setFilterText(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="admin-empty-state">동화 데이터를 불러오는 중입니다...</div>
+      ) : error ? (
+        <div className="admin-empty-state error">{error}</div>
+      ) : filtered.length === 0 ? (
+        <div className="admin-empty-state">
+          {filterText ? "검색 결과가 없습니다." : "아직 생성된 동화가 없습니다."}
+        </div>
+      ) : (
+        <div className="admin-table-container">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>생성 일시</th>
+                <th>아이 이름</th>
+                <th>동화 제목</th>
+                <th>보호자 성함</th>
+                <th>연락처</th>
+                <th>이메일 주소</th>
+                <th>동화 관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s, idx) => {
+                const dateStr = s.created_at ? new Date(s.created_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+                const isDownloading = pdfGeneratingId === s.id;
+                return (
+                  <tr key={s.id}>
+                    <td className="center-cell">{filtered.length - idx}</td>
+                    <td className="date-cell">{dateStr}</td>
+                    <td className="child-cell"><strong>👧 {s.child_name}</strong></td>
+                    <td className="title-cell">
+                      <button className="text-link-btn" onClick={()=>open(s)} title="동화 열기">
+                        {s.title}
+                      </button>
+                    </td>
+                    <td>{s.guardian_contact_name ? `👨‍👩‍👦 ${s.guardian_contact_name}` : <span className="dash-text">-</span>}</td>
+                    <td>{s.guardian_phone || <span className="dash-text">-</span>}</td>
+                    <td className="email-cell">{s.guardian_email || <span className="dash-text">미등록</span>}</td>
+                    <td className="action-cell">
+                      <button 
+                        className="admin-pdf-btn" 
+                        disabled={isDownloading} 
+                        onClick={()=>onDownloadPdf(s)}
+                      >
+                        {isDownloading ? "⏳ 생성중" : "📄 PDF"}
+                      </button>
+                      <button 
+                        className="admin-view-btn" 
+                        onClick={()=>open(s)}
+                      >
+                        📖 보기
+                      </button>
+                      <button 
+                        className="admin-delete-btn" 
+                        onClick={()=>remove(s.id)}
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 const css=`
 :root{--rose:#f55f91;--deep:#3d2940;--paper:#fffaf8}*{box-sizing:border-box}html,body{margin:0;background:var(--paper)}body,button,input,textarea{font-family:"Noto Sans KR",sans-serif!important;color:var(--deep)}button{cursor:pointer}.entrance{height:100svh;overflow:hidden;background:radial-gradient(circle at 50% 42%,#eeeeec 0,#d7d7d4 58%,#c4c4c1 100%)}.entrance-stage{width:100%;height:100%;border:0;background:none;display:grid;place-items:center;padding:clamp(18px,4vw,48px)}.orb{display:block;position:relative;width:min(76vw,76svh,720px);aspect-ratio:1;border-radius:50%;overflow:hidden;background:#f7c8d5;opacity:0;transform:scale(.08) translateY(40px) rotate(-18deg);box-shadow:inset -42px -48px 70px #8e526144,inset 28px 25px 42px #ffffffa8,0 42px 75px #4a3a3a4d,0 8px 18px #ffffff8c}.revealed .orb{animation:orb-arrive 1.05s cubic-bezier(.16,1.28,.3,1) forwards,orb-float 3.4s 1.1s ease-in-out infinite}.orb:before{content:"";position:absolute;inset:1.2%;z-index:4;border-radius:50%;border:2px solid #ffffffa3;box-shadow:inset -14px -16px 25px #632d453d;pointer-events:none}.orb:after{content:"";position:absolute;z-index:4;left:18%;top:9%;width:34%;height:16%;border-radius:50%;background:radial-gradient(ellipse,#fff9 0,#fff0 72%);transform:rotate(-18deg);filter:blur(2px);pointer-events:none}.orb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;transform:scale(1.005)}.orb i{position:absolute;inset:6%;z-index:5;border:2px solid #fff8;border-radius:50%;animation:pulse 2.4s 1.1s infinite}.sp{position:absolute;z-index:6;color:#fff;font-size:clamp(24px,4vw,46px);text-shadow:0 3px 18px #ff78a8}.sp.a{top:19%;left:7%}.sp.b{right:8%;top:29%}@keyframes orb-arrive{0%{opacity:0;transform:scale(.08) translateY(40px) rotate(-18deg)}65%{opacity:1;transform:scale(1.08) translateY(-6px) rotate(3deg)}100%{opacity:1;transform:scale(1) translateY(0) rotate(0)}}@keyframes orb-float{50%{transform:translateY(-12px) scale(1.012)}}@keyframes pulse{70%{transform:scale(1.08);opacity:0}100%{opacity:0}}
 .inside{min-height:100svh}header{height:76px;padding:0 clamp(16px,4vw,60px);display:grid;grid-template-columns:auto 1fr auto;align-items:center;background:#fffaf8ed;border-bottom:1px solid #f4e1e7;position:relative;z-index:20}.header-logos{display:flex;align-items:center;gap:14px}.logo{border:0;background:none;padding:0;display:flex;align-items:center;cursor:pointer}.logo img{width:86px;height:46px;object-fit:contain}.header-divider{width:1px;height:24px;background:#e8d1d8}.library-logo{height:42px;width:auto;max-width:200px;object-fit:contain}.progress{justify-self:center;display:flex;gap:9px}.progress i{width:9px;height:9px;border-radius:50%;background:#ead8dd}.progress i.on{background:var(--rose)}.header-right-space{width:86px}@media(max-width:650px){header{height:68px;padding:0 14px}.logo img{width:68px;height:38px}.library-logo{height:32px;max-width:140px}.header-divider{height:18px}.header-right-space{display:none}}.screen{min-height:calc(100svh - 76px);padding:clamp(40px,6vw,80px) clamp(20px,6vw,90px);position:relative;overflow:hidden;animation:in .4s ease}.heading{text-align:center;margin-bottom:40px;position:relative;z-index:2}.heading small,.hello small,.heading p,.book article p{font-family:"Gowun Dodum",sans-serif}.heading small,.hello small{font-size:22px;color:var(--rose)}.heading h2{font-size:clamp(38px,5vw,62px);margin:8px 0;font-weight:600;letter-spacing:-.045em}.heading p{font-size:20px;color:#8d6874;margin:0}.hello{display:grid;grid-template-columns:.85fr 1.15fr;align-items:center;gap:5vw;background:linear-gradient(145deg,#fffaf8,#fff0f5)}.hello>img{width:100%;max-height:72svh;object-fit:contain;filter:drop-shadow(0 24px 34px #ab45692b)}.hello h1{font-size:clamp(38px,5vw,66px);line-height:1.3;letter-spacing:-.045em;margin:14px 0 34px}.hello em{font-style:normal;color:var(--rose)}.hello-actions{display:flex;gap:12px;flex-wrap:wrap}.hello-actions>button:last-child{border:1px solid #e6bdca;background:#fff;padding:15px 22px;border-radius:16px}.next{border:0;background:var(--rose);color:#fff;padding:16px 24px;border-radius:16px;font-size:18px;box-shadow:0 14px 34px #da568338}.next:disabled{background:#d8c7cc;box-shadow:none}.corner{position:absolute;width:clamp(240px,22vw,330px);z-index:0;filter:drop-shadow(0 18px 24px #ad60702b)}.corner.right{right:18px;top:135px}.corner.left{left:18px;top:135px}.choices{max-width:820px;margin:0 auto 50px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;position:relative;z-index:2}.choices button{aspect-ratio:1;border:2px solid transparent;border-radius:28px;background:#fff0f4;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}.choices button:nth-child(even){background:#fff3df}.choices button.picked{border-color:var(--rose)}.choices b{font-size:48px}.choices span{margin-top:9px}.choices i{display:none;position:absolute;right:12px;top:12px;width:24px;height:24px;border-radius:50%;background:var(--rose);color:#fff;font-style:normal}.choices .picked i{display:grid;place-items:center}.actions{max-width:760px;margin:28px auto 0;display:flex;justify-content:space-between;position:relative;z-index:3}.actions>button:first-child{border:0;background:none;color:#947984}.photo-step,.details{background:linear-gradient(145deg,#fffafb,#fff0f4)}.drop{width:min(620px,100%);height:min(55svh,550px);min-height:350px;margin:auto;border:2px dashed #e5aabe;border-radius:30px;background:#ffffffad;overflow:hidden;position:relative;z-index:2}.drop input{position:absolute;opacity:0}.drop label{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.drop label>span{font-size:64px}.drop label strong{font-size:25px;margin-top:12px}.drop label small{color:#9b7f88;margin-top:7px}.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.drop b{position:absolute;bottom:20px;background:#3d2940db;color:#fff;padding:11px 18px;border-radius:99px}.form{width:min(760px,100%);margin:auto;background:#fff;padding:34px 42px;border-radius:30px;box-shadow:0 24px 65px #8f49601a;display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;position:relative;z-index:2}.form label{font-weight:600}.form .wide,.form fieldset{grid-column:1/-1}.form input,.form textarea{display:block;width:100%;margin-top:7px;border:0;border-bottom:2px solid #f1dce3;background:#fffafb;padding:13px 11px;outline:none}.form textarea{min-height:88px;resize:vertical}.form fieldset{border:0;padding:0;margin:0}.form legend{font-weight:600;margin-bottom:10px}.genres{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.genres button{border:1px solid #edd5dd;background:#fff7f9;border-radius:14px;padding:11px 5px}.genres button b{display:block;font-size:25px;margin-bottom:4px}.genres button.picked{border-color:var(--rose);background:#ffe6ee;color:#c83f70}.form>small{text-align:center;color:#a38891}.error{text-align:center;color:#b52658}.loading{position:fixed;inset:0;z-index:50;background:#fff7f9f2;backdrop-filter:blur(12px);display:grid;place-items:center;text-align:center;padding:24px}.loading img{width:min(330px,70vw);animation:dream 2s infinite}.loading h2{font-size:clamp(24px,4vw,38px);margin:4px 0 10px}.loading p{font-family:"Gowun Dodum",sans-serif;color:#8c6874}.loadbar{width:min(440px,76vw);height:9px;background:#f0dce3;border-radius:9px;overflow:hidden;margin:20px auto}.loadbar span{display:block;height:100%;background:var(--rose);transition:.5s}.story{background:#f8dbe4}.book{max-width:1180px;margin:auto;display:grid;grid-template-columns:.9fr 1.1fr;min-height:min(670px,72svh);background:#fff;box-shadow:0 30px 90px #6834462e;border-radius:28px;overflow:hidden}.visual{position:relative;background:#f1c9d6}.visual img{width:100%;height:100%;object-fit:cover}.visual span{position:absolute;left:20px;top:20px;background:#fff;padding:8px 12px;border-radius:99px;color:var(--rose)}.image-wait{height:100%;display:grid;place-items:center}.book article{padding:clamp(36px,6vw,72px);display:flex;flex-direction:column;justify-content:center}.book article>small{color:var(--rose)}.book article h2{font-size:clamp(34px,4vw,54px);margin:14px 0 24px}.book article p{font-size:22px;line-height:1.85;color:#5f495f}.restart{display:block;margin:24px auto;border:0;background:none;border-bottom:1px solid #6e4f59}.gallery{background:linear-gradient(#fffaf8,#ffedf3)}.shelf{max-width:1180px;margin:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.shelf>button{padding:0;text-align:left;border:0;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px #8f49601a;transition:.25s}.shelf>button:hover{transform:translateY(-5px)}.shelf img{width:100%;aspect-ratio:1.25;object-fit:cover}.shelf div{padding:18px 20px 22px}.shelf small{color:var(--rose)}.shelf h3{font-size:23px;margin:7px 0}.shelf p,.gallery-state{text-align:center;color:#8b7380}.shelf p{text-align:left;margin:0}@keyframes in{from{opacity:0;transform:translateY(10px)}}@keyframes dream{50%{transform:translateY(-10px) rotate(2deg)}}
@@ -388,4 +586,57 @@ const css=`
 .contact-success-box p strong{color:#c73568}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{opacity:0;transform:translateY(24px) scale(0.96)}to{opacity:1;transform:none}}
+
+/* secret admin trigger & dashboard */
+.header-right-tools{display:flex;align-items:center;justify-content:flex-end;width:86px}
+.admin-secret-btn{background:transparent;border:0;font-size:16px;opacity:0.25;cursor:pointer;padding:8px;border-radius:50%;transition:all .2s;color:inherit}
+.admin-secret-btn:hover{opacity:0.9;background:rgba(245,95,145,0.12);transform:scale(1.1)}
+.admin-pin-card{max-width:420px!important;text-align:left}
+.admin-pin-label{display:grid;gap:8px;font-weight:700;font-size:14px;color:#3d2940;margin-bottom:12px}
+.admin-pin-label input{border:1.5px solid #e0c8d1;border-radius:14px;padding:12px 14px;font-size:16px;outline:none}
+.admin-pin-label input:focus{border-color:var(--rose)}
+
+.admin-screen{max-width:1240px;margin:0 auto;padding:40px 24px 80px!important}
+.admin-header-bar{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.admin-tag{display:inline-block;background:#3d2940;color:#fff;font-size:12px;font-weight:800;padding:4px 12px;border-radius:99px;margin-bottom:8px;letter-spacing:0.04em}
+.admin-header-bar h2{font-size:clamp(26px,3.5vw,36px);margin:0 0 6px;color:#3d2940}
+.admin-header-bar p{margin:0;color:#7e5d6a;font-size:15px}
+.admin-exit-btn{border:1px solid #d9b8c4;background:#fff;color:#5a3f4b;padding:10px 18px;border-radius:14px;font-weight:700;font-size:14px;cursor:pointer;transition:all .18s}
+.admin-exit-btn:hover{background:#fdf2f6;border-color:var(--rose);color:#c73568}
+
+.admin-stats-row{display:flex;gap:16px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+.admin-stat-card{background:#fff;border:1px solid #f2dce4;border-radius:18px;padding:14px 20px;display:grid;gap:4px;box-shadow:0 8px 24px rgba(61,41,64,0.06);min-width:140px}
+.admin-stat-card small{font-size:12px;color:#9b7a86;font-weight:700}
+.admin-stat-card strong{font-size:22px;color:#3d2940}
+.admin-stat-search{flex:1;min-width:280px}
+.admin-stat-search input{width:100%;border:1.5px solid #edd5dd;background:#fff;border-radius:18px;padding:14px 18px;font-size:14px;outline:none;box-shadow:0 4px 16px rgba(61,41,64,0.04);transition:border-color .2s}
+.admin-stat-search input:focus{border-color:var(--rose)}
+
+.admin-empty-state{background:#fff;border-radius:20px;padding:60px 20px;text-align:center;font-size:16px;color:#8d6874;border:1px dashed #e8ccd5}
+.admin-table-container{background:#fff;border-radius:24px;box-shadow:0 18px 50px rgba(61,41,64,0.08);border:1px solid #f4e1e7;overflow-x:auto}
+.admin-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px}
+.admin-table th{background:#faf3f6;padding:14px 16px;font-weight:800;color:#5a3c49;border-bottom:1px solid #edd5dd;white-space:nowrap}
+.admin-table td{padding:14px 16px;border-bottom:1px solid #f6e8ed;color:#3d2940;vertical-align:middle}
+.admin-table tr:last-child td{border-bottom:none}
+.admin-table tr:hover td{background:#fff8fa}
+.center-cell{text-align:center;color:#997380;font-weight:700}
+.date-cell{white-space:nowrap;color:#8d6874;font-size:13px}
+.child-cell{white-space:nowrap;color:#c73568}
+.title-cell{min-width:160px;font-weight:700}
+.text-link-btn{border:0;background:none;padding:0;text-align:left;font-weight:700;color:#3d2940;font-size:14px;cursor:pointer;transition:color .15s}
+.text-link-btn:hover{color:var(--rose);text-decoration:underline}
+.email-cell{font-family:monospace;color:#2c5ea8;font-size:13px}
+.dash-text{color:#caa9b5;font-weight:500}
+.action-cell{white-space:nowrap;display:flex;gap:6px;align-items:center}
+.admin-pdf-btn{border:0;background:linear-gradient(145deg,#2b72ee,#1a59cb);color:#fff;border-radius:10px;padding:7px 12px;font-weight:800;font-size:12px;box-shadow:0 4px 12px rgba(27,89,203,0.25);cursor:pointer;transition:all .15s}
+.admin-pdf-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 16px rgba(27,89,203,0.35)}
+.admin-pdf-btn:disabled{opacity:0.6;cursor:wait}
+.admin-view-btn{border:1px solid #ebd3dc;background:#fff;color:#573d49;border-radius:10px;padding:6px 10px;font-weight:700;font-size:12px;cursor:pointer;transition:all .15s}
+.admin-view-btn:hover{background:#fff0f4;border-color:var(--rose);color:#c73568}
+.admin-delete-btn{border:0;background:#fdeef2;color:#ba345c;border-radius:10px;padding:6px 9px;font-size:13px;cursor:pointer;transition:all .15s}
+.admin-delete-btn:hover{background:#fcdde5}
+@media(max-width:768px){
+  .admin-header-bar{flex-direction:column;align-items:stretch}
+  .admin-stats-row{flex-direction:column;align-items:stretch}
+}
 `;

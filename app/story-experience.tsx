@@ -30,10 +30,6 @@ function FinalPolaroidPage({story}:{story:StoryData}){
  const guardian = chars.find(c=>c.role==="guardian") || chars[1];
 
  return <article className="story-polaroid-page">
-  <div className="page-header">
-   <small>우리 가족의 특별한 순간 📸</small>
-   <span className="page-indicator">마지막 장</span>
-  </div>
   <h2>우리가 함께 그린 얼굴</h2>
   <p className="polaroid-sub">서로를 바라보며 정성껏 그린 마음이 이 책에 영원히 담겼어요 ✨</p>
   
@@ -95,18 +91,27 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
 
  async function submitContact(e:React.FormEvent){
   e.preventDefault();
-  if(!guardianEmail.trim()||!guardianEmail.includes("@")){setContactError("PDF를 받을 올바른 이메일 주소를 입력해 줘.");return;}
+  if(!guardianEmail.trim()||!guardianEmail.includes("@")){
+   setContactError("올바른 이메일 주소를 입력해 줘.");return;
+  }
   setContactSaving(true);setContactError("");
   try{
-   const r=await fetch("/api/stories/contact",{
+   const res=await fetch("/api/stories/contact",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({id:story.id,guardianName:guardianName.trim(),guardianPhone:guardianPhone.trim(),guardianEmail:guardianEmail.trim()})
+    body:JSON.stringify({
+     id: story.id,
+     guardianName: guardianName.trim(),
+     guardianPhone: guardianPhone.trim(),
+     guardianEmail: guardianEmail.trim()
+    })
    });
-   const data=await r.json() as any;
-   if(!r.ok)throw new Error(data.error||"저장하지 못했어.");
+   const data=await res.json() as any;
+   if(!res.ok)throw new Error(data.error||"연락처를 저장하지 못했어.");
    setContactSuccess(true);
-  }catch(err){setContactError(err instanceof Error?err.message:"연락처를 저장하지 못했어. 다시 시도해 줘.")}
+  }catch(err){
+   setContactError(err instanceof Error?err.message:"저장에 실패했어. 다시 시도해 줘.");
+  }
   finally{setContactSaving(false)}
  }
 
@@ -136,7 +141,6 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
  return <section className="screen story reader">
   <div className={`book text-only-book ${isPolaroidPage?"polaroid-page-mode":""} ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
    {isFromGallery&&onDecorate&&<button className="gallery-decorate-badge" onClick={onDecorate}>🎨 이 동화 꾸미기</button>}
-   <button className="gallery-pdf-badge" disabled={pdfLoading} onClick={handlePdf}>{pdfLoading?"⏳ PDF 만드는 중…":"📄 PDF 저장"}</button>
    {isPolaroidPage ? <FinalPolaroidPage story={story}/> : <BookPage story={story} page={page}/>}
    <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
    {pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size,pointerEvents:"none"}}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></div>)}
