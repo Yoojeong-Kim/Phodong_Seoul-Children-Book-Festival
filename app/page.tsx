@@ -246,11 +246,11 @@ export default function Home(){
           </label>
         )}
       </div>
-      <label>이름 <em>필수</em><input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 엄마 또는 아빠 이름"}/></label>
+      <label>이름<input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 함께하는 가족 이름"}/></label>
       
-      {/* 필수 분류 선택 */}
+      {/* 분류 선택 */}
       <div className="option-row">
-        <span>{i===0?"성별 (필수)":"함께한 사람 (필수)"}</span>
+        <span>{i===0?"성별":"함께한 사람"}</span>
         <div>
           {(i===0?childKindOptions:guardianKindOptions).map(k=>
             <button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k,otherRole:k!=="기타"?"":c.otherRole})}>
