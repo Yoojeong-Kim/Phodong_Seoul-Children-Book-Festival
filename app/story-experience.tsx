@@ -14,11 +14,15 @@ const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d29
 function BookPage({story,page}:{story:StoryData;page:number}){
  const p=story.pages[page];
  const totalStoryPages=story.pages.length;
+ // 이전 버전 동화(이미지가 표지만 있는 경우) 대응
+ const fallbackImg = story.pages[0]?.image_url || (story as any).cover_image_url;
+ const displayImg = p.image_url || (story.status === "complete" ? fallbackImg : null);
+
  // Fragment 사용: visual과 text가 .book 그리드의 직접 자식으로 들어가 좌우 컬럼을 각각 채움
  return <>
   <div className="story-page-visual">
-   {p.image_url
-    ? <img src={p.image_url} alt={p.title} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+   {displayImg
+    ? <img src={displayImg} alt={p.title} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
     : <div className="image-wait"><span>🎨</span><strong>그림 그리는 중...</strong></div>
    }
   </div>
@@ -94,7 +98,13 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
  const [contactError,setContactError]=useState("");
  const [contactSuccess,setContactSuccess]=useState(false);
 
- function turn(n:number){if(n<0||n>=totalPages||n===page||turning)return;setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480)}
+ function turn(n:number){
+  if(n===page||turning)return;
+  // 1쪽(page 0)에서 이전으로 가면 표지로 복귀
+  if(n<0){setTurning("prev");setTimeout(()=>{setTurning(null);setShowCover(true)},480);return;}
+  if(n>=totalPages)return;
+  setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480);
+ }
  async function handlePdf(){setPdfLoading(true);try{await downloadStoryPdf(story)}finally{setPdfLoading(false)}}
  const pageStrokes=(story.drawings||[]).filter(s=>s.page===page),pageStickers=(story.stickers||[]).filter(s=>s.page===page);
  const coverImg=(story as any).cover_image_url||story.pages[0]?.image_url;
@@ -161,22 +171,22 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
    {isPolaroidPage ? <FinalPolaroidPage story={story}/> : <BookPage story={story} page={page}/>}
    <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
    {pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size,pointerEvents:"none"}}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></div>)}
-    <nav className="book-nav">
-     <div className="nav-side left">
-      <button className="nav-btn prev-btn" disabled={page===0} onClick={()=>turn(page-1)}>← 앞 페이지</button>
-     </div>
-     <div className="nav-center dots">
-      {Array.from({length:totalPages},(_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}
-     </div>
-     <div className="nav-side right">
-      {!isLastPage ? (
-        <button className="nav-btn next-btn" onClick={()=>turn(page+1)}>다음 페이지 →</button>
-      ) : (
-        <button className="nav-btn save-btn next" onClick={()=>setShowContactModal(true)}>💌 동화 저장하기</button>
-      )}
-     </div>
-    </nav>
-  </div>
+     <nav className="book-nav">
+      <div className="nav-side left">
+       <button className="nav-btn prev-btn" onClick={()=>turn(page-1)}>← {page===0?"표지로":"앞 페이지"}</button>
+      </div>
+      <div className="nav-center dots">
+       <button className="cover-dot" onClick={()=>setShowCover(true)} aria-label="표지로 돌아가기" title="표지">📖</button>
+       {Array.from({length:totalPages},(_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}
+      </div>
+      <div className="nav-side right">
+       {!isLastPage
+        ? <button className="nav-btn next-btn" onClick={()=>turn(page+1)}>다음 페이지 →</button>
+        : <button className="nav-btn save-btn next" onClick={()=>setShowContactModal(true)}>💌 동화 저장하기</button>
+       }
+      </div>
+     </nav>
+   </div>
 
   {/* 보호자 연락처 & 이메일 입력 모달 */}
   {showContactModal&&<div className="contact-modal-overlay">
@@ -378,6 +388,8 @@ const styles=`
 .nav-btn.save-btn:hover{transform:translateY(-2px) scale(1.02)!important;box-shadow:0 12px 30px rgba(230,42,105,0.55)!important}
 .nav-center.dots button{width:10px;height:10px;padding:0;border:0;border-radius:50%;background:#e5cad3;transition:all .2s;pointer-events:auto;cursor:pointer}
 .nav-center.dots button.on{background:var(--rose,#f55f91);transform:scale(1.4)}
+.cover-dot{background:none!important;border:0!important;font-size:16px;line-height:1;cursor:pointer;pointer-events:auto;padding:0 4px;opacity:0.7;transition:opacity .2s;width:auto!important;height:auto!important;border-radius:0!important}
+.cover-dot:hover{opacity:1;transform:scale(1.15)}
 
 @media(max-width:650px){
  .book-nav{left:10px;right:10px;bottom:10px}
