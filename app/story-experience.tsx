@@ -13,14 +13,23 @@ const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d29
 
 function BookPage({story,page}:{story:StoryData;page:number}){
  const p=story.pages[page];
- return <article className="story-text-page">
-  <div className="page-header">
-   <small>{story.child_name}의 동화</small>
-   <span className="page-indicator">{page+1} / 5쪽</span>
+ const totalStoryPages=story.pages.length;
+ return <article className="story-page-with-image">
+  <div className="story-page-visual">
+   {p.image_url
+    ? <img src={p.image_url} alt={p.title} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+    : <div className="image-wait"><span>🎨</span><strong>그림 그리는 중...</strong></div>
+   }
   </div>
-  <h2>{p.title}</h2>
-  <div className="text-divider">✦ ✦ ✦</div>
-  <p>{p.text}</p>
+  <div className="story-page-text">
+   <div className="page-header">
+    <small>{story.child_name}의 동화</small>
+    <span className="page-indicator">{page+1} / {totalStoryPages}쪽</span>
+   </div>
+   <h2>{p.title}</h2>
+   <div className="text-divider">✦ ✦ ✦</div>
+   <p>{p.text}</p>
+  </div>
  </article>;
 }
 
@@ -146,7 +155,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
  const isPolaroidPage = page === story.pages.length;
 
  return <section className="screen story reader">
-  <div className={`book text-only-book ${isPolaroidPage?"polaroid-page-mode":""} ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
+  <div className={`book ${isPolaroidPage?"polaroid-page-mode":""} ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
    {isFromGallery&&onDecorate&&<button className="gallery-decorate-badge" onClick={onDecorate}>🎨 이 동화 꾸미기</button>}
    {isPolaroidPage ? <FinalPolaroidPage story={story}/> : <BookPage story={story} page={page}/>}
    <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
@@ -324,15 +333,31 @@ const styles=`
  .reader .book article p{font-size:15px;line-height:1.55}
  .gallery-decorate-badge{top:10px;right:10px;padding:6px 12px;font-size:12px}
 }
-/* text only storybook page layout */
-.reader .book.text-only-book{grid-template-columns:1fr!important;display:flex!important;flex-direction:column!important;justify-content:space-between!important;background:radial-gradient(circle at 50% 30%,#ffffff 0%,#fffdfb 60%,#fff7f2 100%)!important;padding:clamp(28px,4vw,56px) clamp(24px,5vw,72px) 90px!important}
-.story-text-page{width:100%;max-width:820px;margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 0}
-.story-text-page .page-header{display:flex;justify-content:space-between;width:100%;align-items:center;margin-bottom:20px}
-.story-text-page .page-header small{color:#f55f91;font-weight:700;font-size:16px}
-.story-text-page .page-indicator{background:#ffe6ef;color:#c73568;padding:4px 14px;border-radius:99px;font-weight:800;font-size:14px}
-.story-text-page h2{font-size:clamp(26px,4vw,42px);color:#3d2940;margin:0 0 14px;font-weight:800;letter-spacing:-.02em}
-.story-text-page .text-divider{color:#f9a8c4;font-size:15px;letter-spacing:8px;margin-bottom:24px}
-.story-text-page p{font-size:clamp(20px,2.8vw,30px);line-height:2.05;color:#493545;word-break:keep-all;text-wrap:balance;margin:0;font-weight:500;font-family:"Gowun Dodum",sans-serif}
+/* story page with image layout */
+.story-page-with-image{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);position:relative}
+.story-page-visual{height:100%;position:relative;background:linear-gradient(145deg,#f5d6df,#eebaca);overflow:hidden}
+.story-page-visual img{width:100%;height:100%;object-fit:cover;display:block}
+.story-page-visual .image-wait{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(145deg,#ffedf3,#ffdce8)}
+.story-page-visual .image-wait span{font-size:52px;animation:pulse 2s infinite}
+.story-page-visual .image-wait strong{font-size:16px;color:#c73568;font-weight:700}
+.story-page-text{padding:clamp(24px,3.5vw,48px) clamp(28px,4vw,56px) 90px;display:flex;flex-direction:column;justify-content:center;overflow:visible!important;background:#fff}
+.story-page-text .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.story-page-text .page-header small{font-size:clamp(13px,1.4vw,16px);font-weight:700;color:#f55f91}
+.story-page-text .page-indicator{background:#ffe6ef;color:#c73568;padding:4px 14px;border-radius:99px;font-weight:800;font-size:14px}
+.story-page-text h2{font-size:clamp(20px,2.4vw,30px);margin:6px 0 16px;line-height:1.35;letter-spacing:-.03em;font-weight:700;color:#3d2940}
+.story-page-text .text-divider{color:#f9a8c4;font-size:15px;letter-spacing:8px;margin-bottom:24px}
+.story-page-text p{font-size:clamp(18px,1.8vw,24px);line-height:1.95;color:#432e3a;word-break:keep-all;word-wrap:break-word;margin:0;font-weight:500;font-family:"Gowun Dodum",sans-serif}
+@media(max-width:850px){
+ .story-page-with-image{grid-template-columns:1fr;grid-template-rows:44% 56%}
+ .story-page-text{padding:16px 20px 70px}
+ .story-page-text h2{font-size:20px;margin:4px 0 8px}
+ .story-page-text p{font-size:17px;line-height:1.7}
+}
+@media(max-width:560px){
+ .story-page-text{padding:12px 14px 60px}
+ .story-page-text h2{font-size:17px}
+ .story-page-text p{font-size:15px;line-height:1.6}
+}
 .cover-fallback{background:linear-gradient(145deg,#ffedf3,#ffdce8)!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .cover-fallback span{font-size:72px}
 .cover-fallback strong{font-size:28px;color:#c73568}

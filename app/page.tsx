@@ -171,28 +171,29 @@ export default function Home(){
       let made:Story=data.story;
       setStory(made);
 
-      setProgressPercent(40);setProgress("표지 그림을 그리고 있어 🎨");
-      // 표지(page 0)만 이미지 생성
-      for(let attempt=0;attempt<60;attempt++){
-        try{
-          const r=await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:made.id,page:0})});
-          const d=await readApi(r);
-          if(r.status===202){setProgress("표지 그림 순서를 기다리고 있어");await new Promise(resolve=>setTimeout(resolve,5000));continue}
-          if(!r.ok)throw new Error(d.error||"표지를 만들지 못했어.");
-          if(d.image_url){
-            made={...made,pages:made.pages.map((p,i)=>i===0?{...p,image_url:d.image_url}:p)};
-            setStory(made);
+      setProgressPercent(40);setProgress("그림을 그리고 있어 🎨");
+      // 모든 3페이지 이미지 순차 생성
+      const progressMsgs=["1쪽 그림을 그리고 있어 🎨","2쪽 그림을 그리고 있어 🖌️","3쪽 그림을 그리고 있어 ✨"];
+      const progressPcts=[45,60,80];
+      for(let pageIdx=0;pageIdx<3;pageIdx++){
+        setProgress(progressMsgs[pageIdx]);setProgressPercent(progressPcts[pageIdx]);
+        for(let attempt=0;attempt<60;attempt++){
+          try{
+            const r=await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:made.id,page:pageIdx})});
+            const d=await readApi(r);
+            if(r.status===202){setProgress("그림 순서를 기다리고 있어");await new Promise(resolve=>setTimeout(resolve,5000));continue}
+            if(!r.ok)throw new Error(d.error||"그림을 만들지 못했어.");
+            if(d.image_url){
+              made={...made,pages:made.pages.map((p,i)=>i===pageIdx?{...p,image_url:d.image_url}:p)};
+              setStory(made);
+            }
+            break;
+          }catch(e){
+            if(attempt>=2)throw e;
+            setProgress("그림을 정성껏 마무리하고 있어");
+            await new Promise(resolve=>setTimeout(resolve,15000));
           }
-          break;
-        }catch(e){
-          if(attempt>=2)throw e;
-          setProgress("표지를 정성껏 마무리하고 있어");
-          await new Promise(resolve=>setTimeout(resolve,15000));
         }
-      }
-      // 나머지 페이지는 이미지 없이 complete 처리
-      for(let i=1;i<5;i++){
-        await fetch("/api/stories/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:made.id,page:i})});
       }
 
       setProgressPercent(100);setProgress("동화책 완성! 짜잔~ 📖");

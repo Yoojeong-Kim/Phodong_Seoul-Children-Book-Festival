@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+﻿import { env } from "cloudflare:workers";
 import { ensureStoryTables, openAIKey, rowToStory } from "../../../../lib/story-store";
 
 export async function POST(req:Request){
@@ -7,28 +7,26 @@ export async function POST(req:Request){
   await ensureStoryTables();
   const {id,page}=await req.json() as {id:string,page:number};
   lockId=id;lockPage=page;
-  if(!/^[0-9a-f-]{36}$/.test(id)||!Number.isInteger(page)||page<0||page>4)return Response.json({error:"잘못된 요청이야."},{status:400});
+  if(!/^[0-9a-f-]{36}$/.test(id)||!Number.isInteger(page)||page<0||page>2)return Response.json({error:"잘못된 요청이야."},{status:400});
   const row=await env.DB.prepare("SELECT * FROM stories WHERE id=?").bind(id).first();
   if(!row)return Response.json({error:"동화를 찾지 못했어."},{status:404});
   const story=rowToStory(row),target=story.pages[page];
+  if(!target)return Response.json({error:"해당 페이지가 없어."},{status:404});
 
-  // 표지(page 0)만 이미지 생성, 나머지 페이지는 바로 complete 처리
-  if(page>0){
-   const complete=story.pages.every((p,i)=>i===0?!!p.image_url?.includes("cover-v1"):true);
-   if(complete&&story.status!=="complete"){
-    await env.DB.prepare("UPDATE stories SET status='complete' WHERE id=?").bind(id).run();
-   }
-   return Response.json({image_url:null,complete});
-  }
+  // 페이지별 캐시 키
+  const pageKey=page===0?"cover-v1":`page-${page}-v1`;
 
-  // 표지 캐시 확인
-  if(target.image_url?.includes("cover-v1"))return Response.json({image_url:target.image_url,complete:story.status==="complete"});
-  const key=`stories/${id}/cover-v1.png`;
+  // 캐시 확인
+  if(target.image_url?.includes(pageKey))return Response.json({image_url:target.image_url,complete:story.status==="complete"});
+  const key=`stories/${id}/${pageKey}.png`;
   const existing=await env.DB.prepare("SELECT 1 FROM story_images WHERE key=?").bind(key).first();
   if(existing){
-   target.image_url=`/api/story-images/${id}/cover-v1.png`;
-   await env.DB.prepare("UPDATE stories SET pages_json=?, status='complete' WHERE id=?").bind(JSON.stringify(story.pages),id).run();
-   return Response.json({image_url:target.image_url,complete:true});
+   target.image_url=`/api/story-images/${id}/${pageKey}.png`;
+   await env.DB.prepare("UPDATE stories SET pages_json=? WHERE id=?").bind(JSON.stringify(story.pages),id).run();
+   const refreshed=rowToStory(await env.DB.prepare("SELECT * FROM stories WHERE id=?").bind(id).first() as any);
+   const allDone=refreshed.pages.every((p:any,i:number)=>!!p.image_url?.includes(i===0?"cover-v1":`page-${i}-v1`));
+   if(allDone&&refreshed.status!=="complete")await env.DB.prepare("UPDATE stories SET status='complete' WHERE id=?").bind(id).run();
+   return Response.json({image_url:target.image_url,complete:allDone});
   }
 
   // 슬롯 획득
@@ -45,38 +43,36 @@ export async function POST(req:Request){
   const guardianDesc=guardian?`Guardian (${guardian.name}): ${guardian.appearance}`:"A loving parent with a warm smile";
 
   const STYLE=`Art Style & Rendering Specification:
-Create an ultra-polished, premium 3D animated children's book cover illustration with a warm, magical, emotionally comforting tone. The image should feel like a high-end feature-film still from a luxurious family animation.
+Create an ultra-polished, premium 3D animated children's book illustration with a warm, magical, emotionally comforting tone. The image should feel like a high-end feature-film still from a luxurious family animation.
 Human characters should be stylized as adorable figures with large expressive eyes, softly rounded cheeks, tiny delicate noses, small softly smiling mouths, smooth skin, subtle blush on the cheeks. Crystal-clear glossy bright eyes that catch warm catchlights. Hair should appear soft, fluffy, and delicately sculpted.
 Lighting: Radiant golden hour sunlight. Warm golden rim lighting on characters' hair and shoulders. Soft, flattering facial lighting.
-Color Palette: Warm peach, apricot, warm blush pink, creamy honey-beige, ivory, glowing amber — bathed in a clear golden-rosy glow.
+Color Palette: Warm peach, apricot, warm blush pink, creamy honey-beige, ivory, glowing amber bathed in a clear golden-rosy glow.
 Rendering Quality: High-end cinematic 3D CGI (global illumination, ambient occlusion, soft reflections, subsurface scattering).
 Camera: Slightly above eye level, both subjects prominently framed together in a warm embracing or smiling composition.
 Absolutely NO text, letters, words, logos, subtitles, or watermarks anywhere in the image.`;
 
-  const coverPrompt=`[Family Storybook Cover - Children's Book Festival]
+  // 페이지별 image_prompt 사용 (AI가 생성한 장면 설명)
+  const pagePrompt=target.image_prompt||"";
+  const fullPrompt=`[Children''s Book Illustration - Page ${page+1}]
 
 [CRITICAL - Two characters ONLY, exactly 2 people, no duplicates, no extras]:
 1. ${childDesc}
 2. ${guardianDesc}
 
-[Scene]: A warm, heartwarming cover scene showing both characters together — facing each other or side by side — with joyful, loving expressions radiating happiness and family bond. Their emotions and facial expressions are the most important element. Capture the warmth and tenderness between them clearly.
-
-[Emotion Focus]: The hand-drawn faces in the reference photos show specific emotional expressions (joy, laughter, tenderness, curiosity). Translate those emotional essences into the 3D stylized characters — especially their eye shapes, smile curves, and eyebrow positions.
-
-[Story context]: "${story.title}" — a gentle family story about: ${(story as any).answer||(story as any).question||"family love and togetherness"}.
+[Scene from story]: ${pagePrompt}
 
 [Art Style]:
 ${STYLE}
 
-[Composition]: Book cover format. Both characters prominently centered, warm bokeh background suggesting a cozy home or nature setting. Magical soft glow around them.`;
+[Composition]: Children''s book page illustration. Both characters featured in a warm, storybook scene.`;
 
   const response=await fetch("https://api.openai.com/v1/images/generations",{
    method:"POST",
    headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},
-   body:JSON.stringify({model:"gpt-image-2",prompt:coverPrompt.substring(0,4000),size:"1024x1024",quality:"medium"})
+   body:JSON.stringify({model:"gpt-image-2",prompt:fullPrompt.substring(0,4000),size:"1024x1024",quality:"medium"})
   });
 
-  if(!response.ok){const detail=await response.text();console.error("image_api",response.status,detail.slice(0,500));throw new Error(`이미지 API 오류 ${response.status}`)}
+  if(!response.ok){const detail=await response.text();console.error("image_api",response.status,detail.slice(0,500));throw new Error(`이미지 API 오류 ${response.status}`);}
   const data=await response.json() as any;
   let b64=data.data?.[0]?.b64_json;
   if(!b64&&data.data?.[0]?.url){
@@ -86,10 +82,12 @@ ${STYLE}
   if(!b64)throw new Error("이미지 데이터 없음");
 
   await env.DB.prepare("INSERT INTO story_images (key,b64,created_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET b64=excluded.b64").bind(key,b64,Date.now()).run();
-  target.image_url=`/api/story-images/${id}/cover-v1.png`;
-  await env.DB.prepare("UPDATE stories SET pages_json=?, status='complete' WHERE id=?").bind(JSON.stringify(story.pages),id).run();
-  return Response.json({image_url:target.image_url,complete:true});
- }catch(e){console.error("image_gen_failed",e instanceof Error?e.message:String(e));return Response.json({error:"표지를 만드는 데 실패했어."},{status:500})}
+  target.image_url=`/api/story-images/${id}/${pageKey}.png`;
+  await env.DB.prepare("UPDATE stories SET pages_json=? WHERE id=?").bind(JSON.stringify(story.pages),id).run();
+  const refreshed2=rowToStory(await env.DB.prepare("SELECT * FROM stories WHERE id=?").bind(id).first() as any);
+  const allDone2=refreshed2.pages.every((p:any,i:number)=>!!p.image_url?.includes(i===0?"cover-v1":`page-${i}-v1`));
+  if(allDone2)await env.DB.prepare("UPDATE stories SET status='complete' WHERE id=?").bind(id).run();
+  return Response.json({image_url:target.image_url,complete:allDone2});
+ }catch(e){console.error("image_gen_failed",e instanceof Error?e.message:String(e));return Response.json({error:"이미지를 만드는 데 실패했어."},{status:500})}
  finally{try{if(slotAcquired&&lockId&&Number.isInteger(lockPage))await env.DB.prepare("UPDATE image_slots SET story_id=NULL,page=NULL,locked_until=0 WHERE story_id=? AND page=?").bind(lockId,lockPage).run()}catch{}}
 }
-
