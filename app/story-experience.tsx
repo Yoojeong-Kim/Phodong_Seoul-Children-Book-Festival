@@ -6,7 +6,8 @@ export type Sticker={id:string;src:string;page:number;x:number;y:number;size:num
 export type Point={x:number;y:number};
 export type Stroke={id:string;page:number;color:string;width:number;points:Point[]};
 export type Decoration={stickers:Sticker[];drawings:Stroke[]};
-export type StoryData={id:string;child_name:string;question?:string;answer?:string;title:string;summary:string;pages:StoryPage[];stickers?:Sticker[];drawings?:Stroke[]};
+export type StoryCharacter={name:string;role:string;appearance?:string;photo?:string;photo_url?:string};
+export type StoryData={id:string;child_name:string;question?:string;answer?:string;title:string;summary:string;pages:StoryPage[];characters?:StoryCharacter[];stickers?:Sticker[];drawings?:Stroke[]};
 const stickerSources=Array.from({length:9},(_,i)=>`/stickers/sticker-${String(i+1).padStart(2,"0")}.png`);
 const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d2940"];
 
@@ -15,7 +16,7 @@ function BookPage({story,page}:{story:StoryData;page:number}){
  return <article className="story-text-page">
   <div className="page-header">
    <small>{story.child_name}의 동화</small>
-   <span className="page-indicator">{page+1} / {story.pages.length}쪽</span>
+   <span className="page-indicator">{page+1} / 5쪽</span>
   </div>
   <h2>{p.title}</h2>
   <div className="text-divider">✦ ✦ ✦</div>
@@ -23,9 +24,58 @@ function BookPage({story,page}:{story:StoryData;page:number}){
  </article>;
 }
 
+function FinalPolaroidPage({story}:{story:StoryData}){
+ const chars = story.characters || [];
+ const child = chars.find(c=>c.role==="child") || chars[0];
+ const guardian = chars.find(c=>c.role==="guardian") || chars[1];
+
+ return <article className="story-polaroid-page">
+  <div className="page-header">
+   <small>우리 가족의 특별한 순간 📸</small>
+   <span className="page-indicator">마지막 장</span>
+  </div>
+  <h2>우리가 함께 그린 얼굴</h2>
+  <p className="polaroid-sub">서로를 바라보며 정성껏 그린 마음이 이 책에 영원히 담겼어요 ✨</p>
+  
+  <div className="polaroid-gallery">
+   {child && (
+    <figure className="polaroid-card tilt-left">
+     <div className="polaroid-photo-frame">
+      <img 
+        src={child.photo || child.photo_url || "/phodong-sleepy.png"} 
+        alt={child.name} 
+        onError={(e)=>{(e.currentTarget as HTMLImageElement).src = child.photo_url || child.photo || "/phodong-sleepy.png"}}
+      />
+     </div>
+     <figcaption>
+      <strong>👧 {child.name}</strong>
+      <span>{child.role === "child" ? "우리 아이 카드" : "주인공"}</span>
+     </figcaption>
+    </figure>
+   )}
+   {guardian && (
+    <figure className="polaroid-card tilt-right">
+     <div className="polaroid-photo-frame">
+      <img 
+        src={guardian.photo || guardian.photo_url || "/phodong-sleepy.png"} 
+        alt={guardian.name} 
+        onError={(e)=>{(e.currentTarget as HTMLImageElement).src = guardian.photo_url || guardian.photo || "/phodong-sleepy.png"}}
+      />
+     </div>
+     <figcaption>
+      <strong>👨 {guardian.name}</strong>
+      <span>{guardian.role === "guardian" ? "엄마·아빠 카드" : "주인공"}</span>
+     </figcaption>
+    </figure>
+   )}
+  </div>
+ </article>;
+}
+
 export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:{story:StoryData;onSave:()=>void;onDecorate?:()=>void;isFromGallery?:boolean;initialItems?:{photo:string;name:string;reason:string}[]}){
  const [showCover,setShowCover]=useState(true);
  const [pdfLoading,setPdfLoading]=useState(false);
+ const totalPages = story.pages.length + 1; // 5 text pages + 1 polaroid final page = 6 pages
  const [page,setPage]=useState(0),[turning,setTurning]=useState<"next"|"prev"|null>(null),touch=useRef(0);
 
  // 연락처 수집 모달 상태
@@ -38,7 +88,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
  const [contactError,setContactError]=useState("");
  const [contactSuccess,setContactSuccess]=useState(false);
 
- function turn(n:number){if(n<0||n>=story.pages.length||n===page||turning)return;setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480)}
+ function turn(n:number){if(n<0||n>=totalPages||n===page||turning)return;setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480)}
  async function handlePdf(){setPdfLoading(true);try{await downloadStoryPdf(story)}finally{setPdfLoading(false)}}
  const pageStrokes=(story.drawings||[]).filter(s=>s.page===page),pageStickers=(story.stickers||[]).filter(s=>s.page===page);
  const coverImg=(story as any).cover_image_url||story.pages[0]?.image_url;
@@ -80,13 +130,14 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
    </section>
  }
 
- const isLastPage = page === story.pages.length - 1;
+ const isLastPage = page === totalPages - 1;
+ const isPolaroidPage = page === story.pages.length;
 
  return <section className="screen story reader">
-  <div className={`book text-only-book ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
+  <div className={`book text-only-book ${isPolaroidPage?"polaroid-page-mode":""} ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
    {isFromGallery&&onDecorate&&<button className="gallery-decorate-badge" onClick={onDecorate}>🎨 이 동화 꾸미기</button>}
    <button className="gallery-pdf-badge" disabled={pdfLoading} onClick={handlePdf}>{pdfLoading?"⏳ PDF 만드는 중…":"📄 PDF 저장"}</button>
-   <BookPage story={story} page={page}/>
+   {isPolaroidPage ? <FinalPolaroidPage story={story}/> : <BookPage story={story} page={page}/>}
    <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
    {pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size,pointerEvents:"none"}}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></div>)}
     <nav className="book-nav">
@@ -94,7 +145,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
       <button className="nav-btn prev-btn" disabled={page===0} onClick={()=>turn(page-1)}>← 앞 페이지</button>
      </div>
      <div className="nav-center dots">
-      {story.pages.map((_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}
+      {Array.from({length:totalPages},(_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}
      </div>
      <div className="nav-side right">
       {!isLastPage ? (
@@ -322,6 +373,30 @@ const styles=`
 .contact-success-box h3{font-size:26px;color:#3d2940;margin:0 0 10px}
 .contact-success-box p{font-size:15px;color:#7c5b68;line-height:1.6;margin:0 0 24px}
 .contact-success-box p strong{color:#c73568}
+
+/* final polaroid page styling */
+.story-polaroid-page{width:100%;max-width:920px;margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0}
+.story-polaroid-page .page-header{display:flex;justify-content:space-between;width:100%;align-items:center;margin-bottom:12px}
+.story-polaroid-page .page-header small{color:#f55f91;font-weight:700;font-size:16px}
+.story-polaroid-page .page-indicator{background:#ffe6ef;color:#c73568;padding:4px 14px;border-radius:99px;font-weight:800;font-size:14px}
+.story-polaroid-page h2{font-size:clamp(24px,3.2vw,36px);color:#3d2940;margin:0 0 6px;font-weight:800;letter-spacing:-.02em}
+.polaroid-sub{font-size:clamp(14px,1.6vw,18px);color:#8d6874;margin:0 0 24px;font-weight:500;word-break:keep-all}
+.polaroid-gallery{display:flex;justify-content:center;align-items:center;gap:clamp(16px,4vw,40px);width:100%;flex-wrap:wrap;margin:10px 0 20px}
+.polaroid-card{margin:0;background:#ffffff;padding:14px 14px 22px;border-radius:20px;box-shadow:0 14px 38px rgba(90,40,65,0.16);display:flex;flex-direction:column;align-items:center;width:min(280px,44vw);transition:transform .25s ease;border:1px solid #f6e6ee}
+.polaroid-card:hover{transform:rotate(0deg) scale(1.04);box-shadow:0 18px 46px rgba(90,40,65,0.22);z-index:2}
+.polaroid-card.tilt-left{transform:rotate(-3.5deg)}
+.polaroid-card.tilt-right{transform:rotate(3.5deg)}
+.polaroid-photo-frame{width:100%;aspect-ratio:1/1.05;background:#faf3f6;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 10px rgba(0,0,0,0.06)}
+.polaroid-photo-frame img{width:100%;height:100%;object-fit:cover;display:block}
+.polaroid-card figcaption{margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.polaroid-card figcaption strong{font-size:clamp(16px,1.8vw,20px);color:#3d2940;font-weight:800}
+.polaroid-card figcaption span{font-size:clamp(12px,1.2vw,14px);color:#946e7c;font-weight:600}
+@media(max-width:600px){
+ .polaroid-gallery{gap:12px}
+ .polaroid-card{width:min(160px,44vw);padding:10px 10px 16px;border-radius:14px}
+ .polaroid-card.tilt-left{transform:rotate(-2deg)}
+ .polaroid-card.tilt-right{transform:rotate(2deg)}
+}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{opacity:0;transform:translateY(24px) scale(0.96)}to{opacity:1;transform:none}}
 `;

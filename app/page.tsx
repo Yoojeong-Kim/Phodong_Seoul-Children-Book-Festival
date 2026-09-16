@@ -5,7 +5,7 @@ import {TouchDecorateBook} from "./touch-decorate-book";
 
 type Page={page:number;title:string;text:string;image_prompt:string;image_url?:string};
 type Sticker={id:string;src:string;page:number;x:number;y:number;size:number};
-type Story={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:Page[];stickers?:Sticker[];drawings?:Stroke[];status:string;created_at:number};
+type Story={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:Page[];characters?:any[];stickers?:Sticker[];drawings?:Stroke[];status:string;created_at:number};
 
 type CharDraft={
   photo:string;file:File|null;name:string;

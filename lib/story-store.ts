@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 
 export type StoryPage={page:number;title:string;text:string;image_prompt:string;image_url?:string};
-export type CharacterInfo={name:string;role:string;appearance:string};
+export type CharacterInfo={name:string;role:string;appearance:string;photo?:string;photo_url?:string};
 export type StoryRecord={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:StoryPage[];characters?:CharacterInfo[];stickers?:unknown[];drawings?:unknown[];guardian_contact_name?:string;guardian_phone?:string;guardian_email?:string;status:string;created_at:number};
 
 export async function ensureStoryTables(){
@@ -27,7 +27,14 @@ export async function ensureStoryTables(){
 export function rowToStory(row:any):StoryRecord{
  const saved=JSON.parse(row.stickers_json||"[]"),decoration=Array.isArray(saved)?{stickers:saved,drawings:[]}:{stickers:saved.stickers||[],drawings:saved.drawings||[]};
  let chars:CharacterInfo[]=[];
- try{chars=JSON.parse(row.characters_json||"[]");}catch{}
+ try{
+  chars=JSON.parse(row.characters_json||"[]");
+  // ensure photo_url is populated for characters
+  chars=chars.map((c,idx)=>({
+   ...c,
+   photo_url:c.photo_url || (row.id ? `/api/story-images/${row.id}/photo-${idx}.png` : c.photo || "")
+  }));
+ }catch{}
  return {...row,pages:JSON.parse(row.pages_json),characters:chars,question:row.question||"",answer:row.answer||"",guardian_contact_name:row.guardian_contact_name||"",guardian_phone:row.guardian_phone||"",guardian_email:row.guardian_email||"",...decoration};
 }
 export function openAIKey(){

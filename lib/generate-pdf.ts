@@ -7,6 +7,14 @@ export interface PdfStoryPage {
   image_url?: string;
 }
 
+export interface PdfStoryCharacter {
+  name: string;
+  role: string;
+  appearance?: string;
+  photo?: string;
+  photo_url?: string;
+}
+
 export interface PdfStoryData {
   title: string;
   child_name: string;
@@ -15,6 +23,7 @@ export interface PdfStoryData {
   question?: string;
   answer?: string;
   pages: PdfStoryPage[];
+  characters?: PdfStoryCharacter[];
 }
 
 export interface InitialItem {
@@ -56,14 +65,14 @@ export async function downloadStoryPdf(story: PdfStoryData) {
       </div>
     </div>`);
 
-  // 스토리
+  // 스토리 본문 5쪽
   story.pages.forEach((p, i) => {
     const pageTitle = i === 0 ? story.title : p.title;
     if (!p.image_url) {
       pagesHtml.push(`
         <div class="pdf-page story-page text-only-pdf-page">
           <div class="text-side text-only-side">
-            <span class="page-num">${i + 1} / ${story.pages.length}</span>
+            <span class="page-num">${i + 1} / 5</span>
             <small>${esc(story.child_name)}의 동화</small>
             <h2>${esc(pageTitle)}</h2>
             <hr/>
@@ -78,7 +87,7 @@ export async function downloadStoryPdf(story: PdfStoryData) {
           </div>
           <div class="text-side">
             <small>${esc(story.child_name)}의 동화</small>
-            <span class="page-num">${i + 1} / ${story.pages.length}</span>
+            <span class="page-num">${i + 1} / 5</span>
             <h2>${esc(pageTitle)}</h2>
             <hr/>
             <p>${esc(p.text)}</p>
@@ -87,6 +96,54 @@ export async function downloadStoryPdf(story: PdfStoryData) {
     }
   });
 
+  // 마지막 6번째 장: 폴라로이드 사진 카드 페이지
+  const chars = story.characters || [];
+  const child = chars.find(c => c.role === "child") || chars[0];
+  const guardian = chars.find(c => c.role === "guardian") || chars[1];
+
+  let polaroidsHtml = '';
+  if (child || guardian) {
+    polaroidsHtml = `<div class="pdf-polaroid-gallery">`;
+    if (child) {
+      const childSrc = child.photo || child.photo_url || '';
+      polaroidsHtml += `
+        <figure class="pdf-polaroid-card pdf-tilt-left">
+          <div class="pdf-photo-box">
+            ${childSrc ? `<img src="${esc(childSrc)}" alt="${esc(child.name)}" crossorigin="anonymous" />` : `<div class="img-placeholder">👧</div>`}
+          </div>
+          <figcaption>
+            <strong>👧 ${esc(child.name)}</strong>
+            <span>${child.role === "child" ? "우리 아이 카드" : "주인공"}</span>
+          </figcaption>
+        </figure>
+      `;
+    }
+    if (guardian) {
+      const guardianSrc = guardian.photo || guardian.photo_url || '';
+      polaroidsHtml += `
+        <figure class="pdf-polaroid-card pdf-tilt-right">
+          <div class="pdf-photo-box">
+            ${guardianSrc ? `<img src="${esc(guardianSrc)}" alt="${esc(guardian.name)}" crossorigin="anonymous" />` : `<div class="img-placeholder">👨</div>`}
+          </div>
+          <figcaption>
+            <strong>👨 ${esc(guardian.name)}</strong>
+            <span>${guardian.role === "guardian" ? "엄마·아빠 카드" : "주인공"}</span>
+          </figcaption>
+        </figure>
+      `;
+    }
+    polaroidsHtml += `</div>`;
+  }
+
+  pagesHtml.push(`
+    <div class="pdf-page story-page pdf-polaroid-page-wrap">
+      <div class="pdf-polaroid-full">
+        <small>${esc(story.child_name)}의 특별한 순간 📸</small>
+        <h2>우리가 함께 그린 얼굴</h2>
+        <p class="pdf-polaroid-desc">서로를 바라보며 정성껏 그린 마음이 이 책에 영원히 담겼어요 ✨</p>
+        ${polaroidsHtml}
+      </div>
+    </div>`);
 
   const W = 1122;
   const H = 793;
@@ -282,19 +339,91 @@ export async function downloadStoryPdf(story: PdfStoryData) {
         color: #8d6874;
         line-height: 1.4;
       }
-      .back-no-items {
+      .pdf-polaroid-page-wrap {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 30%, #ffffff 0%, #fffbfd 60%, #fff3f7 100%) !important;
+      }
+      .pdf-polaroid-full {
+        width: 100%;
+        text-align: center;
+        padding: 40px 50px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 20px;
-        color: #c9a0b0;
+      }
+      .pdf-polaroid-full small {
+        font-size: 18px;
+        color: #f55f91;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .pdf-polaroid-full h2 {
+        font-size: 34px;
+        font-weight: 900;
+        color: #3d2940;
+        margin: 4px 0 10px;
+      }
+      .pdf-polaroid-desc {
+        font-size: 20px;
+        color: #8d6874;
+        margin: 0 0 34px;
+      }
+      .pdf-polaroid-gallery {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 50px;
+        width: 100%;
+      }
+      .pdf-polaroid-card {
+        margin: 0;
+        background: #ffffff;
+        padding: 16px 16px 26px;
+        border-radius: 24px;
+        box-shadow: 0 16px 40px rgba(120, 60, 80, 0.14);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 320px;
+        border: 1px solid #f6e6ee;
+      }
+      .pdf-tilt-left { transform: rotate(-3deg); }
+      .pdf-tilt-right { transform: rotate(3deg); }
+      .pdf-photo-box {
+        width: 100%;
+        height: 290px;
+        background: #faf2f6;
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pdf-photo-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .pdf-polaroid-card figcaption {
+        margin-top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
         text-align: center;
       }
-      .back-no-items p {
+      .pdf-polaroid-card figcaption strong {
         font-size: 22px;
-        line-height: 1.6;
-        margin: 0;
+        color: #3d2940;
+        font-weight: 800;
+      }
+      .pdf-polaroid-card figcaption span {
+        font-size: 15px;
+        color: #946e7c;
+        font-weight: 600;
       }
     </style>
     <div class="pdf-wrapper">
