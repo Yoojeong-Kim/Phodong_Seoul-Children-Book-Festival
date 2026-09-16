@@ -9,14 +9,18 @@ type Story={id:string;child_name:string;question:string;answer:string;title:stri
 
 type CharDraft={
   photo:string;file:File|null;name:string;
-  role:"child"|"guardian";kind:string;
-  hair:string;hairColor:string;
+  role:"child"|"guardian";kind:string;otherRole?:string;
+  hair:string;hairColor:string;hairStyle?:string;favoriteColor?:string;
+  openOptions?:boolean;
 };
 
 const hairOptions=["아주 짧은 머리","귀밑 머리","어깨 머리","긴 머리"];
-const hairColorOptions=["검은색","짙은 갈색","밝은 갈색"];
+const hairStyleOptions=["생머리","곱슬머리","묶은 머리","파마 머리"];
+const hairColorOptions=["검은색","짙은 갈색","밝은 갈색","노란색","자연 갈색"];
+const favoriteColorOptions=["빨강","주황","노랑","초록","파랑","보라","분홍","하늘색"];
 const childKindOptions=["여자아이","남자아이"];
-const guardianKindOptions=["엄마","아빠"];
+const guardianKindOptions=["엄마","아빠","기타"];
+const otherGuardianOptions=["할머니","할아버지","이모","삼촌","친구","선생님"];
 
 const QUESTIONS=[
   "하루 중 우리 가족이 제일 행복한 순간은 언제인가요?",
@@ -27,12 +31,18 @@ const QUESTIONS=[
 ];
 
 function newChar(role:"child"|"guardian"):CharDraft{
-  return {photo:"",file:null,name:"",role,kind:"",hair:"",hairColor:""};
+  return {photo:"",file:null,name:"",role,kind:"",otherRole:"",hair:"",hairColor:"",hairStyle:"",favoriteColor:"",openOptions:false};
 }
 
 function charAppearance(c:CharDraft):string{
-  const roleLabel=c.role==="child"?c.kind||"아이":"보호자";
-  const parts=[roleLabel,c.hair,c.hairColor+" 머리"].filter(Boolean);
+  const roleLabel=c.role==="child"?c.kind||"아이":(c.kind==="기타"?c.otherRole||"가족":c.kind||"보호자");
+  const parts=[
+    roleLabel,
+    c.hairStyle,
+    c.hair,
+    c.hairColor ? c.hairColor+" 머리" : "",
+    c.favoriteColor ? `좋아하는 색: ${c.favoriteColor}` : ""
+  ].filter(Boolean);
   return parts.join(", ");
 }
 
@@ -97,7 +107,12 @@ export default function Home(){
     setChars(v=>v.map((c,i)=>i===index?{...c,...patch}:c));
   }
 
-  function charReady(c:CharDraft){return !!(c.name.trim()&&c.photo&&c.kind&&c.hair&&c.hairColor)}
+  function charReady(c:CharDraft){
+    const base = !!(c.name.trim() && c.photo && c.kind);
+    if (!base) return false;
+    if (c.kind === "기타") return !!(c.otherRole && c.otherRole.trim());
+    return true;
+  }
 
   function go(n:number){setView("make");setStep(n);window.scrollTo({top:0,behavior:"smooth"})}
 
@@ -174,12 +189,12 @@ export default function Home(){
 
     {/* STEP 1: 가족 소개 (2장 사진 + 캐릭터 옵션) */}
     {step===1&&<section className="screen multi-step photo-step"><Title over="우리 가족을 소개해요 👨‍👩‍👧" title="얼굴 그림 사진을 올려줘!"/><div className="item-grid">{chars.map((c,i)=><article className="item-card" key={i}>
-      <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 우리 아이 카드":"👨 엄마·아빠 카드"}</h3>
+      <h3 style={{color:"var(--rose)",margin:"0 0 14px"}}>{i===0?"👧 우리 아이 카드":"👨 함께하는 가족 카드"}</h3>
       <div className={`mini-drop ${c.photo?"filled":""}`}>
         <input id={`camera-${i}`} type="file" accept="image/*" capture="environment" autoComplete="off" onChange={e=>choosePhoto(e,i)}/>
         {c.photo?(
           <>
-            <img src={c.photo} alt={i===0?"우리 아이 사진":"엄마·아빠 사진"}/>
+            <img src={c.photo} alt={i===0?"우리 아이 사진":"가족 사진"}/>
             <label htmlFor={`camera-${i}`} className="camera-retake">📸 다시 찍기</label>
           </>
         ):(
@@ -190,9 +205,76 @@ export default function Home(){
         )}
       </div>
       <label>이름 <em>필수</em><input value={c.name} maxLength={10} autoComplete="off" spellCheck={false} onChange={e=>updateChar(i,{name:e.target.value})} placeholder={i===0?"예: 지우":"예: 엄마 또는 아빠 이름"}/></label>
-      <div className="option-row"><span>{i===0?"성별":"엄마·아빠"}</span><div>{(i===0?childKindOptions:guardianKindOptions).map(k=><button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k})}>{k}</button>)}</div></div>
-      <div className="option-row"><span>머리 길이</span><div>{hairOptions.map(h=><button type="button" key={h} className={c.hair===h?"picked":""} onClick={()=>updateChar(i,{hair:h})}>{h}</button>)}</div></div>
-      <div className="option-row"><span>머리 색</span><div>{hairColorOptions.map(h=><button type="button" key={h} className={c.hairColor===h?"picked":""} onClick={()=>updateChar(i,{hairColor:h})}>{h}</button>)}</div></div>
+      
+      {/* 필수 분류 선택 */}
+      <div className="option-row">
+        <span>{i===0?"성별 (필수)":"함께한 사람 (필수)"}</span>
+        <div>
+          {(i===0?childKindOptions:guardianKindOptions).map(k=>
+            <button type="button" key={k} className={c.kind===k?"picked":""} onClick={()=>updateChar(i,{kind:k,otherRole:k!=="기타"?"":c.otherRole})}>
+              {k}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 보호자 카드에서 '기타'를 누른 경우 세부 역할 선택 */}
+      {i===1&&c.kind==="기타"&&(
+        <div className="sub-role-box">
+          <small className="sub-role-title">누구와 함께 동화를 만들었나요?</small>
+          <div className="sub-role-buttons">
+            {otherGuardianOptions.map(o=>
+              <button type="button" key={o} className={c.otherRole===o?"picked":""} onClick={()=>updateChar(i,{otherRole:o})}>
+                {o}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 접고 펼칠 수 있는 선택 옵션 아코디언 */}
+      <div className="more-options-wrapper">
+        <button type="button" className={`toggle-options-btn ${c.openOptions?"open":""}`} onClick={()=>updateChar(i,{openOptions:!c.openOptions})}>
+          <span>🎨 더 자세히 꾸미기 (선택)</span>
+          <span className="arrow-icon">{c.openOptions?"▲":"▼"}</span>
+        </button>
+        {c.openOptions&&(
+          <div className="collapsible-options">
+            <div className="option-row">
+              <span>머리 모양</span>
+              <div>
+                {hairStyleOptions.map(s=>
+                  <button type="button" key={s} className={c.hairStyle===s?"picked":""} onClick={()=>updateChar(i,{hairStyle:c.hairStyle===s?"":s})}>{s}</button>
+                )}
+              </div>
+            </div>
+            <div className="option-row">
+              <span>머리 길이</span>
+              <div>
+                {hairOptions.map(h=>
+                  <button type="button" key={h} className={c.hair===h?"picked":""} onClick={()=>updateChar(i,{hair:c.hair===h?"":h})}>{h}</button>
+                )}
+              </div>
+            </div>
+            <div className="option-row">
+              <span>머리 색</span>
+              <div>
+                {hairColorOptions.map(h=>
+                  <button type="button" key={h} className={c.hairColor===h?"picked":""} onClick={()=>updateChar(i,{hairColor:c.hairColor===h?"":h})}>{h}</button>
+                )}
+              </div>
+            </div>
+            <div className="option-row">
+              <span>좋아하는 색깔</span>
+              <div>
+                {favoriteColorOptions.map(col=>
+                  <button type="button" key={col} className={c.favoriteColor===col?"picked":""} onClick={()=>updateChar(i,{favoriteColor:c.favoriteColor===col?"":col})}>{col}</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </article>)}</div>
     {error&&<p className="error">{error}</p>}
     <Actions back={()=>go(0)} next={()=>go(2)} disabled={chars.some(c=>!charReady(c))} label="우리 이야기 고르기 →"/></section>}
@@ -239,6 +321,21 @@ const css=`
 .gallery{background:radial-gradient(circle at 18% 12%,#fff0f7 0,transparent 28%),radial-gradient(circle at 80% 8%,#e8eeff 0,transparent 25%),radial-gradient(circle at 62% 86%,#fff4d6 0,transparent 25%),linear-gradient(155deg,#fffbfc,#f4f0ff)!important}
 .inside{background:linear-gradient(145deg,#fffdfb 0%,#fff4f7 48%,#ffeef4 100%);position:relative}.inside:before{content:"";position:fixed;inset:76px 0 0;pointer-events:none;background:radial-gradient(circle at 12% 18%,#ffd5e48c 0,transparent 28%),radial-gradient(circle at 88% 16%,#fff0c985 0,transparent 24%),radial-gradient(circle at 78% 82%,#e8dcff78 0,transparent 28%),radial-gradient(circle at 18% 84%,#dff5f087 0,transparent 25%);filter:saturate(.92)}header{background:linear-gradient(180deg,#fffefcf7,#fff8faf0);box-shadow:0 8px 28px #9b526314,inset 0 -1px #eecfd8;backdrop-filter:blur(14px)}.screen,.photo-step,.details,.multi-step,.gallery,.story{background:radial-gradient(circle at 14% 12%,#ffffffc9 0,transparent 30%),radial-gradient(circle at 88% 18%,#ffe2ecbd 0,transparent 33%),radial-gradient(circle at 74% 90%,#fff0ce9c 0,transparent 30%),linear-gradient(145deg,#fffafbd9,#ffeef4d9)}.hello{background:radial-gradient(circle at 20% 34%,#ffffff 0,transparent 38%),radial-gradient(circle at 82% 18%,#ffd9e6 0,transparent 38%),linear-gradient(145deg,#fffdfb,#ffeef4)}.heading h2,.hello h1{text-shadow:0 2px 0 #fff,0 12px 30px #c16d8720}.item-card,.hero-card,.form,.phodong-choice{background:linear-gradient(145deg,#ffffff,#fff8fa);border-color:#ffffff;box-shadow:inset 0 1px 0 #fff,0 24px 60px #9d536d1d,0 6px 16px #9d536d16}.item-card:before,.hero-card:before{content:"";position:absolute;inset:1px;border-radius:27px;pointer-events:none;box-shadow:inset 0 0 0 1px #f3dce4,inset 12px 14px 28px #ffffff}.mini-drop,.choices button{background:linear-gradient(145deg,#fff8fa,#ffe6ee);box-shadow:inset 5px 6px 12px #ffffff,inset -7px -8px 14px #eab8c54f,0 10px 24px #9c526917}.choices button:nth-child(even){background:linear-gradient(145deg,#fffaf1,#ffe9c9)}.choices button{transition:transform .22s ease,box-shadow .22s ease}.choices button:hover,.choices button.picked{transform:translateY(-4px);box-shadow:inset 5px 6px 12px #fff,inset -7px -8px 14px #eab8c54f,0 18px 34px #a6506d24}.next,.add-card{background:linear-gradient(145deg,#ff769f,#e8487d);box-shadow:inset 0 2px 1px #ffffff70,inset 0 -4px 8px #b9295a38,0 14px 30px #d9588644}.next:active,.add-card:active{transform:translateY(2px);box-shadow:inset 0 3px 8px #a72b5538,0 5px 14px #d9588633}.option-row button,.genres button{background:linear-gradient(145deg,#fff,#fff4f8);box-shadow:inset 0 1px #fff,0 4px 10px #9a4d6610}.option-row button.picked,.genres button.picked{background:linear-gradient(145deg,#ffedf3,#ffdce8);box-shadow:inset 0 1px #fff,0 7px 16px #d7578326}.book{border:1px solid #ffffff;box-shadow:0 38px 90px #72364a33,0 10px 24px #72364a24,inset 0 1px #fff;position:relative}.book:after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 0 1px #eed5dd,inset 18px 16px 35px #ffffff38}.visual{background:linear-gradient(145deg,#f5d6df,#eebaca)}.loading{background:radial-gradient(circle at 50% 38%,#ffffff 0,#fff4f8e8 45%,#f9dce7ed 100%)}.loading>div{background:linear-gradient(145deg,#ffffffd9,#fff6f9d9);border:1px solid #fff;border-radius:38px;padding:30px;box-shadow:inset 0 1px #fff,0 35px 90px #78374d2b}.shelf>article{background:linear-gradient(145deg,#fff,#fff7fa);box-shadow:inset 0 1px #fff,0 24px 55px #8f496024,0 6px 14px #8f496014}.sticker-tray,.pen-tools{background:linear-gradient(145deg,#ffffffec,#fff4f8e8)!important;box-shadow:inset 0 1px #fff,0 16px 38px #743c511c!important}@media(prefers-reduced-motion:no-preference){.item-card,.hero-card,.phodong-choice{transition:transform .25s ease,box-shadow .25s ease}.item-card:hover,.hero-card:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 #fff,0 30px 70px #9d536d25,0 8px 18px #9d536d18}}
 .decorate{padding-top:22px;overflow:visible}.sticker-help{text-align:center;margin:0 auto 12px;display:flex;justify-content:center;align-items:baseline;gap:10px;flex-wrap:wrap}.sticker-help strong{font-size:20px}.sticker-help span{color:#896d76}.sticker-tray{width:min(1060px,100%);margin:0 auto 16px;padding:10px 14px;display:flex;gap:10px;overflow-x:auto;background:#fffaf7d9;border:1px solid #eccfd8;border-radius:22px;box-shadow:0 12px 30px #71374b16;touch-action:none}.sticker-tray button{width:82px;height:82px;flex:0 0 82px;border:0;background:#fff0f4;border-radius:17px;padding:5px;touch-action:none}.sticker-tray img{width:100%;height:100%;object-fit:contain;pointer-events:none}.decorate .book{position:relative}.placed-sticker{position:absolute;z-index:12;transform:translate(-50%,-50%);padding:0;border:0;background:none;touch-action:none;filter:drop-shadow(0 5px 5px #5e354b3d)}.placed-sticker img{display:block;width:100%;height:auto;pointer-events:none}.placed-sticker.selected{outline:3px dashed #ff5f91;outline-offset:5px;border-radius:12px}.sticker-tools{position:sticky;z-index:15;bottom:14px;margin:-4px auto 0;width:max-content;display:flex;gap:6px;background:#3d2940e8;padding:7px;border-radius:99px;box-shadow:0 9px 28px #3d294055}.sticker-tools button{border:0;background:#fff;color:#563f58;border-radius:99px;padding:8px 13px;font-weight:700}.sticker-tools button:last-child{color:#c52e61}.sticker-ghost{position:fixed;z-index:100;width:120px;max-height:150px;object-fit:contain;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 10px 12px #3d294055)}.item-grid{width:min(1380px,100%);grid-template-columns:repeat(3,minmax(0,1fr))}.hero-grid{width:min(1180px,100%)}@media(max-width:850px){.decorate{padding:16px 10px}.sticker-help{font-size:14px}.sticker-help strong{font-size:18px}.sticker-tray button{width:68px;height:68px;flex-basis:68px}.decorate .book{height:calc(100svh - 275px);min-height:520px}.placed-sticker{max-width:25vw}.item-grid{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.item-card{scroll-snap-align:center}}@media(max-width:560px){.item-grid{grid-template-columns:1fr;overflow:visible}}
+/* sub role selection for 기타 */
+.sub-role-box{margin-top:10px;padding:12px 14px;background:#fff5f8;border:1.5px dashed #f5bccc;border-radius:18px;text-align:left}
+.sub-role-title{display:block;font-size:12px;font-weight:700;color:#b93a65;margin-bottom:8px}
+.sub-role-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.sub-role-buttons button{border:1px solid #ecc9d4;background:#fff;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;color:#5a3f4b;transition:all .15s}
+.sub-role-buttons button.picked{border-color:var(--rose);background:var(--rose);color:#fff;font-weight:700}
+
+/* collapsible appearance options accordion */
+.more-options-wrapper{margin-top:16px;border-top:1px solid #f6e1e8;padding-top:12px}
+.toggle-options-btn{width:100%;border:1px solid #edd4dd;background:#fffdfd;border-radius:14px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;color:#7e5b69;transition:all .18s;cursor:pointer}
+.toggle-options-btn:hover{background:#fff3f6;border-color:#f55f91;color:#c73568}
+.toggle-options-btn.open{background:#fff0f5;border-color:#f55f91;color:#c73568}
+.toggle-options-btn .arrow-icon{font-size:11px;color:#ba7d91}
+.collapsible-options{margin-top:10px;padding:14px;background:#fffbfd;border:1px solid #f6e6ee;border-radius:16px;display:grid;gap:12px;animation:in .2s ease}
+
 /* question selection & answer */
 .question-btn{display:flex;align-items:center;gap:14px;border:2px solid #ead2da;background:#fff8fa;border-radius:18px;padding:18px 20px;text-align:left;font-size:16px;line-height:1.5;transition:all .18s}.question-btn:hover{border-color:#f09fb8;background:#fff0f5}.question-btn.picked{border-color:var(--rose);background:linear-gradient(145deg,#fff0f5,#ffdce8);font-weight:700}.q-check{width:24px;height:24px;min-width:24px;border-radius:50%;border:2px solid #ddbfca;display:grid;place-items:center;color:transparent;font-size:14px}.question-btn.picked .q-check{background:var(--rose);border-color:var(--rose);color:#fff}.answer-box{display:block;width:100%;border:2px solid #ead2da;border-radius:16px;background:#fffafc;padding:16px;font-size:16px;line-height:1.65;resize:vertical;outline:none;margin-top:4px;min-height:100px;transition:border-color .2s}.answer-box:focus{border-color:var(--rose)}
 /* single camera trigger */

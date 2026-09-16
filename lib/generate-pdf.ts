@@ -126,8 +126,8 @@ export async function downloadStoryPdf(story: PdfStoryData) {
             ${guardianSrc ? `<img src="${esc(guardianSrc)}" alt="${esc(guardian.name)}" crossorigin="anonymous" />` : `<div class="img-placeholder">👨</div>`}
           </div>
           <figcaption>
-            <strong>👨 ${esc(guardian.name)}</strong>
-            <span>${guardian.role === "guardian" ? "엄마·아빠 카드" : "주인공"}</span>
+            <strong>👨‍👩‍👧 ${esc(guardian.name)}</strong>
+            <span>${esc(guardian.appearance?.split(",")[0] || (guardian.role === "guardian" ? "함께한 가족 카드" : "주인공"))}</span>
           </figcaption>
         </figure>
       `;

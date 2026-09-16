@@ -62,14 +62,14 @@ function FinalPolaroidPage({story}:{story:StoryData}){
         onError={(e)=>{(e.currentTarget as HTMLImageElement).src = guardian.photo_url || guardian.photo || "/phodong-sleepy.png"}}
       />
      </div>
-     <figcaption>
-      <strong>👨 {guardian.name}</strong>
-      <span>{guardian.role === "guardian" ? "엄마·아빠 카드" : "주인공"}</span>
-     </figcaption>
-    </figure>
-   )}
-  </div>
- </article>;
+      <figcaption>
+       <strong>👨‍👩‍👧 {guardian.name}</strong>
+       <span>{guardian.appearance?.split(",")[0] || (guardian.role === "guardian" ? "함께한 가족 카드" : "주인공")}</span>
+      </figcaption>
+     </figure>
+    )}
+   </div>
+  </article>;
 }
 
 export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:{story:StoryData;onSave:()=>void;onDecorate?:()=>void;isFromGallery?:boolean;initialItems?:{photo:string;name:string;reason:string}[]}){
