@@ -14,7 +14,8 @@ const colors=["#ef5f89","#ff9f43","#ffd43b","#57b77a","#4d91e8","#7558c9","#3d29
 function BookPage({story,page}:{story:StoryData;page:number}){
  const p=story.pages[page];
  const totalStoryPages=story.pages.length;
- return <article className="story-page-with-image">
+ // Fragment 사용: visual과 text가 .book 그리드의 직접 자식으로 들어가 좌우 컬럼을 각각 채움
+ return <>
   <div className="story-page-visual">
    {p.image_url
     ? <img src={p.image_url} alt={p.title} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
@@ -30,7 +31,7 @@ function BookPage({story,page}:{story:StoryData;page:number}){
    <div className="text-divider">✦ ✦ ✦</div>
    <p>{p.text}</p>
   </div>
- </article>;
+ </>;
 }
 
 function FinalPolaroidPage({story}:{story:StoryData}){
@@ -38,7 +39,7 @@ function FinalPolaroidPage({story}:{story:StoryData}){
  const child = chars.find(c=>c.role==="child") || chars[0];
  const guardian = chars.find(c=>c.role==="guardian") || chars[1];
 
- return <article className="story-polaroid-page">
+ return <article className="story-polaroid-page" style={{gridColumn:"1 / -1"}}>
   <h2>우리가 함께 그린 얼굴</h2>
   <p className="polaroid-sub">서로를 바라보며 정성껏 그린 마음이 이 책에 영원히 담겼어요 ✨</p>
   
@@ -333,8 +334,7 @@ const styles=`
  .reader .book article p{font-size:15px;line-height:1.55}
  .gallery-decorate-badge{top:10px;right:10px;padding:6px 12px;font-size:12px}
 }
-/* story page with image layout */
-.story-page-with-image{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);position:relative}
+/* story page layout: visual(left) + text(right) are direct children of .book grid */
 .story-page-visual{height:100%;position:relative;background:linear-gradient(145deg,#f5d6df,#eebaca);overflow:hidden}
 .story-page-visual img{width:100%;height:100%;object-fit:cover;display:block}
 .story-page-visual .image-wait{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(145deg,#ffedf3,#ffdce8)}
@@ -347,9 +347,11 @@ const styles=`
 .story-page-text h2{font-size:clamp(20px,2.4vw,30px);margin:6px 0 16px;line-height:1.35;letter-spacing:-.03em;font-weight:700;color:#3d2940}
 .story-page-text .text-divider{color:#f9a8c4;font-size:15px;letter-spacing:8px;margin-bottom:24px}
 .story-page-text p{font-size:clamp(18px,1.8vw,24px);line-height:1.95;color:#432e3a;word-break:keep-all;word-wrap:break-word;margin:0;font-weight:500;font-family:"Gowun Dodum",sans-serif}
+/* 폴라로이드 페이지: 양쪽 컬럼 전체 차지 */
+.story-polaroid-page{grid-column:1 / -1}
 @media(max-width:850px){
- .story-page-with-image{grid-template-columns:1fr;grid-template-rows:44% 56%}
- .story-page-text{padding:16px 20px 70px}
+ .story-page-visual{grid-row:1}
+ .story-page-text{grid-row:2;padding:16px 20px 70px}
  .story-page-text h2{font-size:20px;margin:4px 0 8px}
  .story-page-text p{font-size:17px;line-height:1.7}
 }
