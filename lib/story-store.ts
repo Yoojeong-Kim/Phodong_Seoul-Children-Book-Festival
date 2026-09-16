@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 export type StoryPage={page:number;title:string;text:string;image_prompt:string;image_url?:string};
 export type CharacterInfo={name:string;role:string;appearance:string};
-export type StoryRecord={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:StoryPage[];characters?:CharacterInfo[];stickers?:unknown[];drawings?:unknown[];status:string;created_at:number};
+export type StoryRecord={id:string;child_name:string;question:string;answer:string;title:string;summary:string;pages:StoryPage[];characters?:CharacterInfo[];stickers?:unknown[];drawings?:unknown[];guardian_contact_name?:string;guardian_phone?:string;guardian_email?:string;status:string;created_at:number};
 
 export async function ensureStoryTables(){
  const db=env.DB;
@@ -20,12 +20,15 @@ export async function ensureStoryTables(){
  try{await db.prepare("ALTER TABLE stories ADD COLUMN answer TEXT NOT NULL DEFAULT ''").run();}catch{}
  try{await db.prepare("ALTER TABLE stories ADD COLUMN genre TEXT NOT NULL DEFAULT ''").run();}catch{}
  try{await db.prepare("ALTER TABLE stories ADD COLUMN object_name TEXT NOT NULL DEFAULT ''").run();}catch{}
+ try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_contact_name TEXT DEFAULT ''").run();}catch{}
+ try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_phone TEXT DEFAULT ''").run();}catch{}
+ try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_email TEXT DEFAULT ''").run();}catch{}
 }
 export function rowToStory(row:any):StoryRecord{
  const saved=JSON.parse(row.stickers_json||"[]"),decoration=Array.isArray(saved)?{stickers:saved,drawings:[]}:{stickers:saved.stickers||[],drawings:saved.drawings||[]};
  let chars:CharacterInfo[]=[];
  try{chars=JSON.parse(row.characters_json||"[]");}catch{}
- return {...row,pages:JSON.parse(row.pages_json),characters:chars,question:row.question||"",answer:row.answer||"",...decoration};
+ return {...row,pages:JSON.parse(row.pages_json),characters:chars,question:row.question||"",answer:row.answer||"",guardian_contact_name:row.guardian_contact_name||"",guardian_phone:row.guardian_phone||"",guardian_email:row.guardian_email||"",...decoration};
 }
 export function openAIKey(){
  const key=(env as any)?.OPENAI_API_KEY||(globalThis as any)?.OPENAI_API_KEY||(typeof process!=="undefined"?process.env?.OPENAI_API_KEY:undefined);

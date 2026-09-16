@@ -27,10 +27,43 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
  const [showCover,setShowCover]=useState(true);
  const [pdfLoading,setPdfLoading]=useState(false);
  const [page,setPage]=useState(0),[turning,setTurning]=useState<"next"|"prev"|null>(null),touch=useRef(0);
+
+ // 연락처 수집 모달 상태
+ const defaultGuardian = (story as any).characters?.find((c:any)=>c.role==="guardian")?.name || "";
+ const [showContactModal,setShowContactModal]=useState(false);
+ const [guardianName,setGuardianName]=useState(defaultGuardian);
+ const [guardianPhone,setGuardianPhone]=useState("");
+ const [guardianEmail,setGuardianEmail]=useState("");
+ const [contactSaving,setContactSaving]=useState(false);
+ const [contactError,setContactError]=useState("");
+ const [contactSuccess,setContactSuccess]=useState(false);
+
  function turn(n:number){if(n<0||n>=story.pages.length||n===page||turning)return;setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480)}
  async function handlePdf(){setPdfLoading(true);try{await downloadStoryPdf(story)}finally{setPdfLoading(false)}}
  const pageStrokes=(story.drawings||[]).filter(s=>s.page===page),pageStickers=(story.stickers||[]).filter(s=>s.page===page);
  const coverImg=(story as any).cover_image_url||story.pages[0]?.image_url;
+
+ async function submitContact(e:React.FormEvent){
+  e.preventDefault();
+  if(!guardianEmail.trim()||!guardianEmail.includes("@")){setContactError("PDF를 받을 올바른 이메일 주소를 입력해 줘.");return;}
+  setContactSaving(true);setContactError("");
+  try{
+   const r=await fetch("/api/stories/contact",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:story.id,guardianName:guardianName.trim(),guardianPhone:guardianPhone.trim(),guardianEmail:guardianEmail.trim()})
+   });
+   const data=await r.json() as any;
+   if(!r.ok)throw new Error(data.error||"저장하지 못했어.");
+   setContactSuccess(true);
+  }catch(err){setContactError(err instanceof Error?err.message:"연락처를 저장하지 못했어. 다시 시도해 줘.")}
+  finally{setContactSaving(false)}
+ }
+
+ function finishAndClose(){
+  setShowContactModal(false);
+  onSave();
+ }
 
  if(showCover){
    return <section className="screen story reader">
@@ -47,6 +80,8 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
    </section>
  }
 
+ const isLastPage = page === story.pages.length - 1;
+
  return <section className="screen story reader">
   <div className={`book text-only-book ${turning?`turn-${turning}`:""}`} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(Math.abs(d)>55)turn(page+(d>0?-1:1))}}>
    {isFromGallery&&onDecorate&&<button className="gallery-decorate-badge" onClick={onDecorate}>🎨 이 동화 꾸미기</button>}
@@ -55,17 +90,67 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
    <svg className="drawing-layer reader-drawings" viewBox="0 0 100 100" preserveAspectRatio="none" style={{pointerEvents:"none"}}>{pageStrokes.map(s=><polyline key={s.id} points={s.points.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color} strokeWidth={s.width/2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}</svg>
    {pageStickers.map(s=><div key={s.id} className="placed-sticker" style={{left:`${s.x}%`,top:`${s.y}%`,width:s.size,pointerEvents:"none"}}><img src={s.src} alt="붙인 포동이 스티커" draggable={false}/></div>)}
     <nav className="book-nav">
-     <button disabled={page===0} onClick={()=>turn(page-1)}>앞 페이지</button>
-     <div>{story.pages.map((_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}</div>
-     {page<story.pages.length-1
-       ? <button onClick={()=>turn(page+1)}>다음 페이지</button>
-       : <div style={{display:"flex",gap:"8px"}}>
-           {isFromGallery?(onDecorate&&<button className="next" onClick={onDecorate}>꾸미기</button>):<button className="next" onClick={onSave}>저장하기</button>}
-           {isFromGallery&&<button onClick={onSave}>책장으로</button>}
-         </div>
-     }
+     <div className="nav-side left">
+      <button className="nav-btn prev-btn" disabled={page===0} onClick={()=>turn(page-1)}>← 앞 페이지</button>
+     </div>
+     <div className="nav-center dots">
+      {story.pages.map((_,i)=><button key={i} className={page===i?"on":""} onClick={()=>turn(i)} aria-label={`${i+1}쪽`}/>)}
+     </div>
+     <div className="nav-side right">
+      {!isLastPage ? (
+        <button className="nav-btn next-btn" onClick={()=>turn(page+1)}>다음 페이지 →</button>
+      ) : (
+        <button className="nav-btn save-btn next" onClick={()=>setShowContactModal(true)}>💌 동화 저장하기</button>
+      )}
+     </div>
     </nav>
   </div>
+
+  {/* 보호자 연락처 & 이메일 입력 모달 */}
+  {showContactModal&&<div className="contact-modal-overlay">
+   <div className="contact-modal-card">
+    <button className="modal-close-btn" onClick={()=>setShowContactModal(false)} aria-label="닫기">✕</button>
+    {!contactSuccess ? (
+      <form onSubmit={submitContact} className="contact-form">
+       <span className="modal-badge">📖 소중한 가족 동화</span>
+       <h3>동화를 간직해 드릴게요 💌</h3>
+       <p className="modal-sub">축제 부스에서 만든 동화책을 PDF로 예쁘게 엮어서 이메일로 보내드려요!</p>
+       
+       <label>
+        <span>보호자 성함</span>
+        <input value={guardianName} maxLength={20} required onChange={e=>setGuardianName(e.target.value)} placeholder="예: 홍길동"/>
+       </label>
+
+       <label>
+        <span>연락처 (휴대폰)</span>
+        <input value={guardianPhone} type="tel" maxLength={20} onChange={e=>setGuardianPhone(e.target.value)} placeholder="예: 010-1234-5678"/>
+       </label>
+
+       <label>
+        <span>이메일 주소 <em>필수</em></span>
+        <input value={guardianEmail} type="email" required onChange={e=>setGuardianEmail(e.target.value)} placeholder="예: family@example.com"/>
+       </label>
+
+       {contactError&&<p className="contact-error">{contactError}</p>}
+
+       <div className="modal-actions">
+        <button type="button" className="cancel-btn" onClick={()=>setShowContactModal(false)}>취소</button>
+        <button type="submit" className="submit-btn next" disabled={contactSaving}>
+         {contactSaving ? "저장하는 중..." : "PDF 동화 신청 및 저장 ✨"}
+        </button>
+       </div>
+      </form>
+    ) : (
+      <div className="contact-success-box">
+       <span className="success-icon">🎉</span>
+       <h3>신청이 완료되었어요!</h3>
+       <p>소중한 우리 가족 동화를 <strong>{guardianEmail}</strong> 메일로 정성껏 보내드릴게요.</p>
+       <button className="next" onClick={finishAndClose}>우리 동화 책장으로 가기 📚</button>
+      </div>
+    )}
+   </div>
+  </div>}
+
   <style>{styles}</style>
  </section>
 }
@@ -196,4 +281,47 @@ const styles=`
 .cover-fallback{background:linear-gradient(145deg,#ffedf3,#ffdce8)!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .cover-fallback span{font-size:72px}
 .cover-fallback strong{font-size:28px;color:#c73568}
+
+/* balanced book navigation */
+.book-nav{position:absolute;left:24px;right:24px;bottom:20px;display:flex;justify-content:space-between;align-items:center;z-index:20;pointer-events:none}
+.nav-side{flex:1;display:flex;align-items:center}
+.nav-side.left{justify-content:flex-start}
+.nav-side.right{justify-content:flex-end}
+.nav-center.dots{display:flex;justify-content:center;gap:8px;flex:0 0 auto}
+.nav-btn{pointer-events:auto;border:0;background:rgba(255,255,255,0.94);backdrop-filter:blur(6px);color:#563e48;padding:12px 20px;border-radius:99px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(90,45,60,0.14);transition:all .18s;cursor:pointer}
+.nav-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(90,45,60,0.22);background:#fff}
+.nav-btn:disabled{opacity:0.35;cursor:default;box-shadow:none}
+.nav-btn.save-btn{background:linear-gradient(145deg,#ff628f,#eb3e74)!important;color:#fff!important;box-shadow:0 8px 24px rgba(235,62,116,0.4)!important;animation:pulse 2.2s infinite}
+.nav-center.dots button{width:10px;height:10px;padding:0;border:0;border-radius:50%;background:#e5cad3;transition:all .2s;pointer-events:auto;cursor:pointer}
+.nav-center.dots button.on{background:var(--rose,#f55f91);transform:scale(1.35)}
+
+@media(max-width:650px){
+ .book-nav{left:12px;right:12px;bottom:12px}
+ .nav-btn{font-size:13px;padding:9px 14px}
+ .nav-center.dots{gap:5px}
+}
+
+/* contact modal */
+.contact-modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(45,25,38,0.62);backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px;animation:fadeIn .25s ease}
+.contact-modal-card{position:relative;width:min(520px,100%);background:linear-gradient(150deg,#ffffff 0%,#fffafc 100%);border-radius:28px;padding:34px 28px;box-shadow:0 30px 80px rgba(70,25,45,0.32);border:1px solid rgba(255,255,255,0.8);animation:modalUp .3s cubic-bezier(0.16,1,0.3,1)}
+.modal-close-btn{position:absolute;top:18px;right:18px;border:0;background:#f3e4ea;color:#7e5264;width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:grid;place-items:center;transition:all .15s}
+.modal-close-btn:hover{background:#ead0db;color:#3d2940}
+.modal-badge{display:inline-block;background:#ffe6ef;color:#c73568;padding:4px 12px;border-radius:99px;font-size:13px;font-weight:800;margin-bottom:8px}
+.contact-form h3{font-size:24px;color:#3d2940;margin:0 0 6px;letter-spacing:-0.02em}
+.modal-sub{font-size:14px;color:#8a6c76;line-height:1.5;margin:0 0 20px}
+.contact-form label{display:grid;gap:6px;margin-bottom:14px;font-weight:700;font-size:14px;color:#4a323d;text-align:left}
+.contact-form label em{color:var(--rose,#f55f91);font-style:normal;font-size:12px}
+.contact-form input{width:100%;border:1.5px solid #ead2da;background:#fff8fa;border-radius:14px;padding:13px 15px;font-size:15px;outline:none;transition:border-color .2s;font-family:inherit}
+.contact-form input:focus{border-color:var(--rose,#f55f91);background:#fff}
+.contact-error{color:#d32f5f;font-size:13px;font-weight:700;margin:0 0 12px;text-align:left}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.cancel-btn{flex:1;border:1px solid #e2c5cf;background:#fff;color:#7e5d6a;border-radius:14px;padding:14px;font-weight:700;font-size:15px;cursor:pointer}
+.submit-btn{flex:2;margin:0!important;padding:14px!important;font-size:15px!important}
+.contact-success-box{text-align:center;padding:10px 0}
+.success-icon{font-size:54px;display:block;margin-bottom:10px}
+.contact-success-box h3{font-size:26px;color:#3d2940;margin:0 0 10px}
+.contact-success-box p{font-size:15px;color:#7c5b68;line-height:1.6;margin:0 0 24px}
+.contact-success-box p strong{color:#c73568}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes modalUp{from{opacity:0;transform:translateY(24px) scale(0.96)}to{opacity:1;transform:none}}
 `;

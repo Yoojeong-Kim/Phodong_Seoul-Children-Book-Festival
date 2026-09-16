@@ -255,4 +255,40 @@ const css=`
 .cover-fallback{background:linear-gradient(145deg,#ffedf3,#ffdce8)!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .cover-fallback span{font-size:72px}
 .cover-fallback strong{font-size:28px;color:#c73568}
+/* balanced book navigation */
+.book-nav{position:absolute;left:24px;right:24px;bottom:20px;display:flex;justify-content:space-between;align-items:center;z-index:20;pointer-events:none}
+.nav-side{flex:1;display:flex;align-items:center}
+.nav-side.left{justify-content:flex-start}
+.nav-side.right{justify-content:flex-end}
+.nav-center.dots{display:flex;justify-content:center;gap:8px;flex:0 0 auto}
+.nav-btn{pointer-events:auto;border:0;background:rgba(255,255,255,0.94);backdrop-filter:blur(6px);color:#563e48;padding:12px 20px;border-radius:99px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(90,45,60,0.14);transition:all .18s;cursor:pointer}
+.nav-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(90,45,60,0.22);background:#fff}
+.nav-btn:disabled{opacity:0.35;cursor:default;box-shadow:none}
+.nav-btn.save-btn{background:linear-gradient(145deg,#ff628f,#eb3e74)!important;color:#fff!important;box-shadow:0 8px 24px rgba(235,62,116,0.4)!important;animation:pulse 2.2s infinite}
+.nav-center.dots button{width:10px;height:10px;padding:0;border:0;border-radius:50%;background:#e5cad3;transition:all .2s;pointer-events:auto;cursor:pointer}
+.nav-center.dots button.on{background:var(--rose,#f55f91);transform:scale(1.35)}
+@media(max-width:650px){.book-nav{left:12px;right:12px;bottom:12px}.nav-btn{font-size:13px;padding:9px 14px}.nav-center.dots{gap:5px}}
+/* contact modal */
+.contact-modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(45,25,38,0.62);backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px;animation:fadeIn .25s ease}
+.contact-modal-card{position:relative;width:min(520px,100%);background:linear-gradient(150deg,#ffffff 0%,#fffafc 100%);border-radius:28px;padding:34px 28px;box-shadow:0 30px 80px rgba(70,25,45,0.32);border:1px solid rgba(255,255,255,0.8);animation:modalUp .3s cubic-bezier(0.16,1,0.3,1)}
+.modal-close-btn{position:absolute;top:18px;right:18px;border:0;background:#f3e4ea;color:#7e5264;width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:grid;place-items:center;transition:all .15s}
+.modal-close-btn:hover{background:#ead0db;color:#3d2940}
+.modal-badge{display:inline-block;background:#ffe6ef;color:#c73568;padding:4px 12px;border-radius:99px;font-size:13px;font-weight:800;margin-bottom:8px}
+.contact-form h3{font-size:24px;color:#3d2940;margin:0 0 6px;letter-spacing:-0.02em}
+.modal-sub{font-size:14px;color:#8a6c76;line-height:1.5;margin:0 0 20px}
+.contact-form label{display:grid;gap:6px;margin-bottom:14px;font-weight:700;font-size:14px;color:#4a323d;text-align:left}
+.contact-form label em{color:var(--rose,#f55f91);font-style:normal;font-size:12px}
+.contact-form input{width:100%;border:1.5px solid #ead2da;background:#fff8fa;border-radius:14px;padding:13px 15px;font-size:15px;outline:none;transition:border-color .2s;font-family:inherit}
+.contact-form input:focus{border-color:var(--rose,#f55f91);background:#fff}
+.contact-error{color:#d32f5f;font-size:13px;font-weight:700;margin:0 0 12px;text-align:left}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.cancel-btn{flex:1;border:1px solid #e2c5cf;background:#fff;color:#7e5d6a;border-radius:14px;padding:14px;font-weight:700;font-size:15px;cursor:pointer}
+.submit-btn{flex:2;margin:0!important;padding:14px!important;font-size:15px!important}
+.contact-success-box{text-align:center;padding:10px 0}
+.success-icon{font-size:54px;display:block;margin-bottom:10px}
+.contact-success-box h3{font-size:26px;color:#3d2940;margin:0 0 10px}
+.contact-success-box p{font-size:15px;color:#7c5b68;line-height:1.6;margin:0 0 24px}
+.contact-success-box p strong{color:#c73568}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes modalUp{from{opacity:0;transform:translateY(24px) scale(0.96)}to{opacity:1;transform:none}}
 `;
