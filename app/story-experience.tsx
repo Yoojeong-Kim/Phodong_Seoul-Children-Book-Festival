@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import {PointerEvent,useRef,useState} from "react";
 import {downloadStoryPdf} from "../lib/generate-pdf";
 export type StoryPage={page:number;title:string;text:string;image_prompt:string;image_url?:string};
@@ -100,8 +100,11 @@ export function ReaderBook({story,onSave,initialItems}:{story:StoryData;onSave:(
 
  function turn(n:number){
   if(n===page||turning)return;
-  // 1쪽(page 0)에서 이전으로 가면 표지로 복귀
-  if(n<0){setTurning("prev");setTimeout(()=>{setTurning(null);setShowCover(true)},480);return;}
+  // 1쪽(page 0)에서 이전으로 가면 바로 표지로 복귀 (애니메이션 딜레이 없이 즉시 처리)
+  if(n<0){
+   setShowCover(true);
+   return;
+  }
   if(n>=totalPages)return;
   setTurning(n>page?"next":"prev");setPage(n);setTimeout(()=>setTurning(null),480);
  }
