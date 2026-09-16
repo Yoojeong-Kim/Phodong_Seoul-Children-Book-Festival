@@ -47,6 +47,14 @@ const QUESTIONS=[
   "오늘 이 자리에서 서로에게 해주고 싶은 말이 있나요?",
 ];
 
+const QUESTION_PLACEHOLDERS: Record<string, string> = {
+  "하루 중 우리 가족이 제일 행복한 순간은 언제인가요?": "예: 저녁에 다 같이 모여서 도란도란 맛있는 밥을 먹을 때가 제일 행복해요!",
+  "우리 가족이 함께 방문하고 싶은 장소는 어디인가요?": "예: 푸른 바다가 한눈에 보이고 모래성을 쌓을 수 있는 제주도 해변에 가고 싶어요!",
+  "우리 가족만의 재미있는 문화가 있다면 무엇일까요?": "예: 주말 아침마다 가족 노래방을 열어 신나게 춤추고 노래 부르는 문화가 있어요!",
+  "우리 가족이 가장 좋아하는 놀이는 무엇인가요?": "예: 거실에서 이불로 비밀 기지를 만들고 보드게임을 하거나 숨바꼭질하는 놀이를 좋아해요!",
+  "오늘 이 자리에서 서로에게 해주고 싶은 말이 있나요?": "예: 언제나 내 편이 되어주고 곁에 있어줘서 정말 고맙고 온 마음을 다해 사랑해!",
+};
+
 function newChar(role:"child"|"guardian"):CharDraft{
   return {photo:"",file:null,name:"",role,kind:"",otherRole:"",hair:"",hairColor:"",hairStyle:"",favoriteColor:"",openOptions:false};
 }
@@ -314,7 +322,7 @@ export default function Home(){
     <Actions back={()=>go(0)} next={()=>go(2)} disabled={chars.some(c=>!charReady(c))} label="우리 이야기 고르기 →"/></section>}
 
     {/* STEP 2: 질문 선택 & 답변 */}
-    {step===2&&<section className="screen multi-step"><Title over="우리 가족 이야기 💬" title="질문을 하나 골라 대답해 줘!" sub="보호자와 아이가 함께 골라 보세요"/><div style={{maxWidth:760,margin:"0 auto 32px",display:"grid",gap:14}}>{QUESTIONS.map(q=><button key={q} className={`question-btn ${question===q?"picked":""}`} onClick={()=>{setQuestion(q);setAnswer("")}}><span className="q-check">✓</span><span>{q}</span></button>)}</div>{question&&<div style={{maxWidth:760,margin:"0 auto"}}><label style={{display:"grid",gap:10,fontWeight:700}}><span>우리 가족의 대답</span><textarea className="answer-box" value={answer} onChange={e=>setAnswer(e.target.value)} maxLength={300} rows={4} placeholder="예: 저녁에 다 같이 밥 먹을 때가 제일 좋아요!" spellCheck={false}/></label></div>}
+    {step===2&&<section className="screen multi-step"><Title over="우리 가족 이야기 💬" title="질문을 하나 골라 대답해 줘!" sub="보호자와 아이가 함께 골라 보세요"/><div style={{maxWidth:760,margin:"0 auto 32px",display:"grid",gap:14}}>{QUESTIONS.map(q=><button key={q} className={`question-btn ${question===q?"picked":""}`} onClick={()=>{setQuestion(q);setAnswer("")}}><span className="q-check">✓</span><span>{q}</span></button>)}</div>{question&&<div style={{maxWidth:760,margin:"0 auto"}}><label style={{display:"grid",gap:10,fontWeight:700}}><span>우리 가족의 대답</span><textarea className="answer-box" value={answer} onChange={e=>setAnswer(e.target.value)} maxLength={300} rows={4} placeholder={QUESTION_PLACEHOLDERS[question] || "우리 가족만의 특별한 대답을 적어 주세요!"} spellCheck={false}/></label></div>}
     {error&&<p className="error">{error}</p>}
     <Actions back={()=>go(1)} next={createStory} disabled={!question||!answer.trim()||creating} label={creating?"만드는 중...":"동화 만들어 줘! ✨"}/></section>}
 
