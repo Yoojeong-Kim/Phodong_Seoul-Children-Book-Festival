@@ -1,4 +1,4 @@
-﻿import { env } from "cloudflare:workers";
+import { env } from "cloudflare:workers";
 import { ensureStoryTables } from "../../../../lib/story-store";
 
 export async function POST(req: Request) {
@@ -13,7 +13,10 @@ export async function POST(req: Request) {
     if (!/^[0-9a-f-]{36}$/.test(id)) {
       return Response.json({ error: "잘못된 동화 식별자야." }, { status: 400 });
     }
-    if (!guardianEmail || !guardianEmail.includes("@")) {
+    if (!guardianPhone && !guardianEmail) {
+      return Response.json({ error: "연락처(휴대폰) 또는 이메일 주소 중 하나는 꼭 입력해 줘." }, { status: 400 });
+    }
+    if (guardianEmail && !guardianEmail.includes("@")) {
       return Response.json({ error: "올바른 이메일 주소를 입력해 줘." }, { status: 400 });
     }
 

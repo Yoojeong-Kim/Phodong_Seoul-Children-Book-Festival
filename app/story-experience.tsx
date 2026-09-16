@@ -91,8 +91,15 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
 
  async function submitContact(e:React.FormEvent){
   e.preventDefault();
-  if(!guardianEmail.trim()||!guardianEmail.includes("@")){
-   setContactError("올바른 이메일 주소를 입력해 줘.");return;
+  const phone = guardianPhone.trim();
+  const email = guardianEmail.trim();
+  if(!phone && !email){
+   setContactError("연락처(휴대폰) 또는 이메일 주소 중 하나는 꼭 입력해 줘.");
+   return;
+  }
+  if(email && !email.includes("@")){
+   setContactError("올바른 이메일 주소를 입력해 줘.");
+   return;
   }
   setContactSaving(true);setContactError("");
   try{
@@ -102,8 +109,8 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
     body:JSON.stringify({
      id: story.id,
      guardianName: guardianName.trim(),
-     guardianPhone: guardianPhone.trim(),
-     guardianEmail: guardianEmail.trim()
+     guardianPhone: phone,
+     guardianEmail: email
     })
    });
    const data=await res.json() as any;
@@ -169,7 +176,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
       <form onSubmit={submitContact} className="contact-form">
        <span className="modal-badge">📖 소중한 가족 동화</span>
        <h3>동화를 간직해 드릴게요 💌</h3>
-       <p className="modal-sub">축제 부스에서 만든 동화책을 PDF로 예쁘게 엮어서 이메일로 보내드려요!</p>
+       <p className="modal-sub">축제 부스에서 만든 동화책을 저장하고 PDF 전송을 위해 <strong>휴대폰 번호 또는 이메일 중 하나</strong>를 남겨주세요.</p>
        
        <label>
         <span>보호자 성함</span>
@@ -177,13 +184,13 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
        </label>
 
        <label>
-        <span>연락처 (휴대폰)</span>
+        <span>연락처 (휴대폰) <em>(휴대폰 or 이메일 택1)</em></span>
         <input value={guardianPhone} type="tel" maxLength={20} onChange={e=>setGuardianPhone(e.target.value)} placeholder="예: 010-1234-5678"/>
        </label>
 
        <label>
-        <span>이메일 주소 <em>필수</em></span>
-        <input value={guardianEmail} type="email" required onChange={e=>setGuardianEmail(e.target.value)} placeholder="예: family@example.com"/>
+        <span>이메일 주소 <em>(휴대폰 or 이메일 택1)</em></span>
+        <input value={guardianEmail} type="email" onChange={e=>setGuardianEmail(e.target.value)} placeholder="예: family@example.com"/>
        </label>
 
        {contactError&&<p className="contact-error">{contactError}</p>}
@@ -191,7 +198,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
        <div className="modal-actions">
         <button type="button" className="cancel-btn" onClick={()=>setShowContactModal(false)}>취소</button>
         <button type="submit" className="submit-btn next" disabled={contactSaving}>
-         {contactSaving ? "저장하는 중..." : "PDF 동화 신청 및 저장 ✨"}
+         {contactSaving ? "저장하는 중..." : "동화 저장 및 신청 ✨"}
         </button>
        </div>
       </form>
@@ -199,7 +206,7 @@ export function ReaderBook({story,onSave,onDecorate,isFromGallery,initialItems}:
       <div className="contact-success-box">
        <span className="success-icon">🎉</span>
        <h3>신청이 완료되었어요!</h3>
-       <p>소중한 우리 가족 동화를 <strong>{guardianEmail}</strong> 메일로 정성껏 보내드릴게요.</p>
+       <p>소중한 우리 가족 동화가 저장되었습니다.<br/>{guardianEmail ? <span>입력해주신 <strong>{guardianEmail}</strong> 메일로 안내해 드릴게요.</span> : <span>입력해주신 연락처(<strong>{guardianPhone}</strong>)로 안내해 드릴게요.</span>}</p>
        <button className="next" onClick={finishAndClose}>우리 동화 책장으로 가기 📚</button>
       </div>
     )}

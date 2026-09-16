@@ -418,7 +418,7 @@ function AdminDashboard({
         </div>
         <div className="admin-stat-card">
           <small>연락처 수집 완료</small>
-          <strong>{stories.filter(s=>s.guardian_email).length}건</strong>
+          <strong>{stories.filter(s=>s.guardian_phone || s.guardian_email).length}건</strong>
         </div>
         <div className="admin-stat-search">
           <input 
