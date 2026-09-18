@@ -205,6 +205,6 @@ ${STYLE}
   const allDone2=refreshed2.pages.every((p:any,i:number)=>!!p.image_url?.includes(i===0?"cover-v1":`page-${i}-v1`));
   if(allDone2)await env.DB.prepare("UPDATE stories SET status='complete' WHERE id=?").bind(id).run();
   return Response.json({image_url:target.image_url,complete:allDone2});
- }catch(e){console.error("image_gen_failed",e instanceof Error?e.message:String(e));return Response.json({error:"이미지를 만드는 데 실패했어."},{status:500})}
+ }catch(e){console.error("image_gen_failed",e instanceof Error?e.message:String(e));return Response.json({error:e instanceof Error?e.message:"이미지를 만드는 데 실패했어."},{status:500})}
  finally{try{if(slotAcquired&&lockId&&Number.isInteger(lockPage))await env.DB.prepare("UPDATE image_slots SET story_id=NULL,page=NULL,locked_until=0 WHERE story_id=? AND page=?").bind(lockId,lockPage).run()}catch{}}
 }

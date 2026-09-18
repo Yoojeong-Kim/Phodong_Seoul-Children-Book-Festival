@@ -72,7 +72,7 @@ export async function downloadStoryPdf(story: PdfStoryData) {
       pagesHtml.push(`
         <div class="pdf-page story-page text-only-pdf-page">
           <div class="text-side text-only-side">
-            <span class="page-num">${i + 1} / 5</span>
+            <span class="page-num">${i + 1} / ${story.pages.length}</span>
             <small>${esc(story.child_name)}의 동화</small>
             <h2>${esc(pageTitle)}</h2>
             <hr/>
@@ -87,7 +87,7 @@ export async function downloadStoryPdf(story: PdfStoryData) {
           </div>
           <div class="text-side">
             <small>${esc(story.child_name)}의 동화</small>
-            <span class="page-num">${i + 1} / 5</span>
+            <span class="page-num">${i + 1} / ${story.pages.length}</span>
             <h2>${esc(pageTitle)}</h2>
             <hr/>
             <p>${esc(p.text)}</p>
