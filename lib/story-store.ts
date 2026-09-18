@@ -43,11 +43,15 @@ export function rowToStory(row:any):StoryRecord{
  }catch{}
  return {...row,pages:JSON.parse(row.pages_json),characters:chars,question:row.question||"",answer:row.answer||"",guardian_contact_name:row.guardian_contact_name||"",guardian_phone:row.guardian_phone||"",guardian_email:row.guardian_email||"",...decoration};
 }
-export function openAIKey(){
+export function geminiKey(): string | null {
+ const e = (env as any) || {};
+ const key = e.GEMINI_API_KEY || e.GOOGLE_API_KEY || e.GOOGLE_AI_API_KEY || e.GEMINI_KEY
+  || (globalThis as any)?.GEMINI_API_KEY || (globalThis as any)?.GOOGLE_API_KEY
+  || (typeof process !== "undefined" ? (process.env?.GEMINI_API_KEY || process.env?.GOOGLE_API_KEY) : undefined);
+ return key || null;
+}
+
+export function openAIKey(): string | null {
  const key=(env as any)?.OPENAI_API_KEY||(globalThis as any)?.OPENAI_API_KEY||(typeof process!=="undefined"?process.env?.OPENAI_API_KEY:undefined);
- if(!key){
-  const keys=Object.keys(env||{}).join(", ");
-  throw new Error(`OPENAI_API_KEY is not configured (env keys: [${keys}])`);
- }
- return key;
+ return key || null;
 }

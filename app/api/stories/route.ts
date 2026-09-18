@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { ensureStoryTables, openAIKey, rowToStory } from "../../../lib/story-store";
+import { ensureStoryTables, geminiKey, openAIKey, rowToStory } from "../../../lib/story-store";
 import { STORY_SYSTEM_PROMPT, storyInput } from "../../../lib/story-prompt";
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +14,105 @@ const ALLOWED_QUESTIONS = new Set([
 
 const storySchema={type:"object",additionalProperties:false,required:["title","summary","pages"],properties:{title:{type:"string"},summary:{type:"string"},pages:{type:"array",minItems:3,maxItems:3,items:{type:"object",additionalProperties:false,required:["page","title","text","image_prompt"],properties:{page:{type:"integer"},title:{type:"string"},text:{type:"string"},image_prompt:{type:"string"}}}}}};
 
+const geminiStorySchema = {
+  type: "OBJECT",
+  required: ["title", "summary", "pages"],
+  properties: {
+    title: { type: "STRING" },
+    summary: { type: "STRING" },
+    pages: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["page", "title", "text", "image_prompt"],
+        properties: {
+          page: { type: "INTEGER" },
+          title: { type: "STRING" },
+          text: { type: "STRING" },
+          image_prompt: { type: "STRING" }
+        }
+      }
+    }
+  }
+};
+
+async function generateStoryWithGemini(apiKey: string, userText: string, characters: any[]) {
+  const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  const imageParts = characters.map((c: any) => {
+    const photo = String(c.photo || "");
+    const match = photo.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (match) {
+      return {
+        inlineData: {
+          mimeType: match[1],
+          data: match[2]
+        }
+      };
+    }
+    return null;
+  }).filter(Boolean);
+
+  const requestBody = {
+    systemInstruction: {
+      parts: [{ text: STORY_SYSTEM_PROMPT }]
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: userText },
+          ...imageParts
+        ]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: geminiStorySchema,
+      temperature: 0.7
+    }
+  };
+
+  let lastError: any = null;
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`gemini_${model}_error`, res.status, errText.slice(0, 300));
+        lastError = new Error(`Gemini (${model}) ${res.status}`);
+        continue;
+      }
+
+      const data = await res.json() as any;
+      const candidate = data.candidates?.[0];
+      if (candidate?.finishReason === "SAFETY") {
+        throw new Error("SAFETY_BLOCKED");
+      }
+      const rawText = candidate?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error("Gemini 응답 텍스트 없음");
+
+      const parsed = JSON.parse(rawText);
+      if (parsed && Array.isArray(parsed.pages) && parsed.pages.length === 3) {
+        return parsed;
+      }
+      throw new Error("Gemini 응답 형식 불일치");
+    } catch (err: any) {
+      if (err?.message === "SAFETY_BLOCKED") throw err;
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Gemini 동화 생성에 실패했어.");
+}
+
 function outputText(data:any){for(const item of data.output||[])for(const content of item.content||[])if(content.type==="output_text")return content.text;throw new Error("동화 응답을 읽지 못했어.")}
 
-async function openAIFetch(url:string,init:RequestInit,retries=2){let response:Response|null=null;for(let attempt=0;attempt<=retries;attempt++){response=await fetch(url,init);if(response.ok||![429,500,502,503,504].includes(response.status))return response;if(attempt<retries)await new Promise(resolve=>setTimeout(resolve,600*(attempt+1)))}return response!}
+async function openAIFetch(url:string,init:RequestInit,retries=3){let response:Response|null=null;for(let attempt=0;attempt<=retries;attempt++){response=await fetch(url,init);if(response.ok||![429,500,502,503,504].includes(response.status))return response;if(attempt<retries)await new Promise(resolve=>setTimeout(resolve,1200*(attempt+1)))}return response!}
 
 export async function GET(req:Request){
  await ensureStoryTables();
@@ -78,20 +174,45 @@ export async function POST(req:Request){
   if(characters.some((v:any)=>!/^data:image\/(jpeg|png|webp|gif);base64,/i.test(v.photo)))return Response.json({error:"사진을 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘."},{status:400});
 
   const childName=characters.map((v:any)=>v.name).join(" · ");
-  const key=openAIKey();
+  const gKey=geminiKey();
+  const oKey=openAIKey();
+
+  if(!gKey&&!oKey){
+    return Response.json({error:"API 키가 설정되지 않았어. Cloudflare 대시보드에서 GEMINI_API_KEY를 확인해 줘."},{status:500});
+  }
+
   const userText=storyInput({characters,question,answer});
+  let generated:any=null;
 
-  stage="moderation";
-  try{
-   const moderation=await openAIFetch("https://api.openai.com/v1/moderations",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:"omni-moderation-latest",input:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo}}))]})},1);
-   if(moderation.ok){const mod=await moderation.json() as any;if(mod.results?.[0]?.flagged)return Response.json({error:"다른 사진이나 이야기로 다시 시도해 줘."},{status:400})}
-  }catch(e){console.warn("moderation_skipped",e instanceof Error?e.message:String(e))}
+  // 1순위: Google Gemini (초고속, 넉넉한 한도, 429 없음)
+  if(gKey){
+    try{
+      stage="gemini_story";
+      generated=await generateStoryWithGemini(gKey,userText,characters);
+    }catch(geminiErr:any){
+      console.warn("gemini_story_failed, checking fallback",geminiErr?.message);
+      if(geminiErr?.message==="SAFETY_BLOCKED"){
+        return Response.json({error:"다른 사진이나 이야기로 다시 시도해 줘."},{status:400});
+      }
+      if(!oKey)throw geminiErr;
+    }
+  }
 
-  stage="story_api";
-  const response=await openAIFetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:STORY_SYSTEM_PROMPT},{role:"user",content:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo,detail:"low"}}))]}],response_format:{type:"json_schema",json_schema:{name:"phodong_story",strict:true,schema:storySchema}},max_tokens:4096})});
-  if(!response.ok){const detail=await response.text();console.error("story_api",response.status,detail.slice(0,500));if(response.status===400)return Response.json({error:"사진을 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘."},{status:400});if(response.status===429)return Response.json({error:"잠깐 너무 바빠. 1분 뒤 다시 눌러 줘."},{status:429});throw new Error(`동화 API 오류 ${response.status}`)}
-  const raw=await response.json() as any;
-  const generated=JSON.parse(raw.choices?.[0]?.message?.content||"null");
+  // 2순위: OpenAI 폴백
+  if(!generated&&oKey){
+    stage="openai_story";
+    const response=await openAIFetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${oKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:STORY_SYSTEM_PROMPT},{role:"user",content:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo,detail:"low"}}))]}],response_format:{type:"json_schema",json_schema:{name:"phodong_story",strict:true,schema:storySchema}},max_tokens:4096})});
+    if(!response.ok){
+      const detail=await response.text();
+      console.error("story_api",response.status,detail.slice(0,500));
+      if(response.status===400)return Response.json({error:"사진을 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘."},{status:400});
+      if(response.status===429)return Response.json({error:"잠깐 너무 바빠. 1분 뒤 다시 눌러 줘."},{status:429});
+      throw new Error(`동화 API 오류 ${response.status}`);
+    }
+    const raw=await response.json() as any;
+    generated=JSON.parse(raw.choices?.[0]?.message?.content||"null");
+  }
+
   if(!generated||!generated.pages)throw new Error("동화 응답을 읽지 못했어.");
 
   stage="save";
