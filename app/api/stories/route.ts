@@ -37,7 +37,41 @@ const geminiStorySchema = {
 };
 
 async function generateStoryWithGemini(apiKey: string, userText: string, characters: any[]) {
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
+
+  // 1. First probe available models using ListModels to verify key and get active model list
+  let targetModel = "gemini-1.5-flash";
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
+    const listData = await listRes.json() as any;
+    console.log("[Gemini ListModels Status]:", listRes.status);
+    if (listData?.error) {
+      console.error("[Gemini ListModels Error]:", JSON.stringify(listData.error));
+      throw new Error(`Google API 오류: ${listData.error.message || JSON.stringify(listData.error)}`);
+    }
+    if (Array.isArray(listData?.models)) {
+      const available = listData.models
+        .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
+        .map((m: any) => m.name.replace(/^models\//, ""));
+      console.log("[Gemini Available Models]:", available.join(", "));
+      const preferred = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"];
+      for (const pref of preferred) {
+        if (available.includes(pref)) {
+          targetModel = pref;
+          break;
+        }
+      }
+      if (!available.includes(targetModel) && available.length > 0) {
+        targetModel = available[0];
+      }
+    }
+  } catch (probeErr: any) {
+    console.warn("[Gemini Probe Warning]:", probeErr?.message);
+    if (probeErr?.message?.startsWith("Google API 오류:")) throw probeErr;
+  }
+
+  console.log("[Gemini Selected Target Model]:", targetModel);
+
   const imageParts = characters.map((c: any) => {
     const photo = String(c.photo || "");
     const match = photo.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
@@ -72,39 +106,44 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
     }
   };
 
+  const candidateModels = [targetModel, "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-pro"].filter((v, i, a) => a.indexOf(v) === i);
+  const versions = ["v1beta", "v1"];
   let lastError: any = null;
-  for (const model of models) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn(`gemini_${model}_error`, res.status, errText.slice(0, 300));
-        lastError = new Error(`Gemini (${model}) ${res.status}`);
-        continue;
-      }
+  for (const ver of versions) {
+    for (const model of candidateModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${cleanKey}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody)
+        });
 
-      const data = await res.json() as any;
-      const candidate = data.candidates?.[0];
-      if (candidate?.finishReason === "SAFETY") {
-        throw new Error("SAFETY_BLOCKED");
-      }
-      const rawText = candidate?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error("Gemini 응답 텍스트 없음");
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error(`[Gemini Error ${ver} ${model}]:`, res.status, errText);
+          lastError = new Error(`Gemini (${model} ${ver}) ${res.status}: ${errText.slice(0, 180)}`);
+          continue;
+        }
 
-      const parsed = JSON.parse(rawText);
-      if (parsed && Array.isArray(parsed.pages) && parsed.pages.length === 3) {
-        return parsed;
+        const data = await res.json() as any;
+        const candidate = data.candidates?.[0];
+        if (candidate?.finishReason === "SAFETY") {
+          throw new Error("SAFETY_BLOCKED");
+        }
+        const rawText = candidate?.content?.parts?.[0]?.text;
+        if (!rawText) throw new Error("Gemini 응답 텍스트 없음");
+
+        const parsed = JSON.parse(rawText);
+        if (parsed && Array.isArray(parsed.pages) && parsed.pages.length === 3) {
+          return parsed;
+        }
+        throw new Error("Gemini 응답 형식 불일치");
+      } catch (err: any) {
+        if (err?.message === "SAFETY_BLOCKED") throw err;
+        lastError = err;
       }
-      throw new Error("Gemini 응답 형식 불일치");
-    } catch (err: any) {
-      if (err?.message === "SAFETY_BLOCKED") throw err;
-      lastError = err;
     }
   }
   throw lastError || new Error("Gemini 동화 생성에 실패했어.");

@@ -45,13 +45,15 @@ export function rowToStory(row:any):StoryRecord{
 }
 export function geminiKey(): string | null {
  const e = (env as any) || {};
- const key = e.GEMINI_API_KEY || e.GOOGLE_API_KEY || e.GOOGLE_AI_API_KEY || e.GEMINI_KEY
+ const raw = e.GEMINI_API_KEY || e.GOOGLE_API_KEY || e.GOOGLE_AI_API_KEY || e.GEMINI_KEY
   || (globalThis as any)?.GEMINI_API_KEY || (globalThis as any)?.GOOGLE_API_KEY
   || (typeof process !== "undefined" ? (process.env?.GEMINI_API_KEY || process.env?.GOOGLE_API_KEY) : undefined);
- return key || null;
+ if (!raw) return null;
+ return String(raw).trim().replace(/^["']|["']$/g, "").trim();
 }
 
 export function openAIKey(): string | null {
- const key=(env as any)?.OPENAI_API_KEY||(globalThis as any)?.OPENAI_API_KEY||(typeof process!=="undefined"?process.env?.OPENAI_API_KEY:undefined);
- return key || null;
+ const raw = (env as any)?.OPENAI_API_KEY || (globalThis as any)?.OPENAI_API_KEY || (typeof process !== "undefined" ? process.env?.OPENAI_API_KEY : undefined);
+ if (!raw) return null;
+ return String(raw).trim().replace(/^["']|["']$/g, "").trim();
 }
