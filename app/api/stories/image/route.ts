@@ -4,8 +4,9 @@ import { ensureStoryTables, geminiKey, openAIKey, rowToStory } from "../../../..
 async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, refB64?: string | null): Promise<string> {
   const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
 
-  // 1. 모델 자동 탐색 (ListModels)
+  // 1. 모델 자동 탐색 (최고화질 스튜디오급 모델 gemini-3-pro-image 우선)
   let candidateModels = [
+    "gemini-3-pro-image",
     "gemini-3.1-flash-image",
     "gemini-2.5-flash-image",
     "gemini-3.0-flash-image",
@@ -21,7 +22,10 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
         .map((m: any) => m.name.replace(/^models\//, ""));
       if (discoveredImageModels.length > 0) {
         console.log("[Gemini Image Discovered Models]:", discoveredImageModels.join(", "));
-        candidateModels = [...discoveredImageModels, ...candidateModels].filter((v, i, a) => a.indexOf(v) === i);
+        // gemini-3-pro-image가 있으면 최우선
+        const proModels = discoveredImageModels.filter((m: string) => m.includes("pro"));
+        const otherModels = discoveredImageModels.filter((m: string) => !m.includes("pro"));
+        candidateModels = [...proModels, ...candidateModels, ...otherModels].filter((v, i, a) => a.indexOf(v) === i);
       }
     }
   } catch (e: any) {
@@ -32,6 +36,11 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
   let lastError = "";
 
+  const imageConfig2K = {
+    imageSize: "2k",
+    aspectRatio: "1:1"
+  };
+
   for (const model of candidateModels) {
     for (const ver of ["v1beta", "v1"]) {
       // 참조 이미지가 있는 경우(1쪽, 2쪽)와 텍스트 전용(표지 등) 페이로드 준비
@@ -39,13 +48,29 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
       if (refB64) {
         payloads.push({
-          desc: "with-ref-text-image",
+          desc: "with-ref-2k-text-image",
           body: {
             contents: [{
               role: "user",
               parts: [
                 { inlineData: { mimeType: "image/png", data: refB64 } },
-                { text: `[Maintain consistent character appearance, faces, hair, and 3D art style with the reference cover image attached above]\n\n${prompt}` }
+                { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
+              ]
+            }],
+            generationConfig: {
+              responseModalities: ["TEXT", "IMAGE"],
+              imageConfig: imageConfig2K
+            }
+          }
+        });
+        payloads.push({
+          desc: "with-ref-standard-text-image",
+          body: {
+            contents: [{
+              role: "user",
+              parts: [
+                { inlineData: { mimeType: "image/png", data: refB64 } },
+                { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
               ]
             }],
             generationConfig: {
@@ -53,25 +78,26 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
             }
           }
         });
-        payloads.push({
-          desc: "with-ref-image-only",
-          body: {
-            contents: [{
-              role: "user",
-              parts: [
-                { inlineData: { mimeType: "image/png", data: refB64 } },
-                { text: `[Maintain consistent character appearance, faces, hair, and 3D art style with the reference cover image attached above]\n\n${prompt}` }
-              ]
-            }],
-            generationConfig: {
-              responseModalities: ["IMAGE"]
-            }
-          }
-        });
       }
 
+      // 텍스트 전용 (2K 고해상도 우선 시도)
       payloads.push({
-        desc: "text-only-text-image",
+        desc: "text-only-2k",
+        body: {
+          contents: [{
+            role: "user",
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+            imageConfig: imageConfig2K
+          }
+        }
+      });
+
+      // 표준 해상도 폴백
+      payloads.push({
+        desc: "text-only-standard",
         body: {
           contents: [{
             role: "user",
@@ -79,19 +105,6 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
           }],
           generationConfig: {
             responseModalities: ["TEXT", "IMAGE"]
-          }
-        }
-      });
-
-      payloads.push({
-        desc: "text-only-image-only",
-        body: {
-          contents: [{
-            role: "user",
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            responseModalities: ["IMAGE"]
           }
         }
       });
@@ -212,29 +225,19 @@ export async function POST(req: Request) {
     const childDesc = child ? `Child (${child.name}): ${child.appearance}` : "A young child with a warm smile";
     const guardianDesc = guardian ? `Guardian (${guardian.name}): ${guardian.appearance}` : "A loving parent with a warm smile";
 
-    const STYLE = `Art Style & Rendering Specification:
-Create an ultra-polished, premium 3D animated children's book illustration with a warm, magical, emotionally comforting tone. The image should feel like a high-end feature-film still from a luxurious family animation.
-Human characters should be stylized as adorable figures with large expressive eyes, softly rounded cheeks, tiny delicate noses, small softly smiling mouths, smooth skin, subtle blush on the cheeks. Crystal-clear glossy bright eyes that catch warm catchlights. Hair should appear soft, fluffy, and delicately sculpted.
-Lighting: Radiant golden hour sunlight. Warm golden rim lighting on characters' hair and shoulders. Soft, flattering facial lighting.
-Color Palette: Warm peach, apricot, warm blush pink, creamy honey-beige, ivory, glowing amber bathed in a clear golden-rosy glow.
-Rendering Quality: High-end cinematic 3D CGI (global illumination, ambient occlusion, soft reflections, subsurface scattering).
-Camera: Slightly above eye level, both subjects prominently framed together in a warm embracing or smiling composition.
-Absolutely NO text, letters, words, logos, subtitles, or watermarks anywhere in the image.`;
-
     // 페이지별 image_prompt 사용 (AI가 생성한 장면 설명)
     const pagePrompt = target.image_prompt || "";
-    const fullPrompt = `[Children's Book Illustration - Page ${page + 1}]
 
-[CRITICAL - Two characters ONLY, exactly 2 people, no duplicates, no extras]:
-1. ${childDesc}
-2. ${guardianDesc}
+    const fullPrompt = `A breathtaking, warm, and tender children's picture book illustration for page ${page + 1}.
+The scene portrays a deeply loving family moment featuring exactly two characters:
+1. Child (${child?.name || "Child"}): ${childDesc}. The child has large, bright, sparkling expressive eyes filled with curiosity, softly rounded blushing cheeks, cute smiling expression, and soft delicately detailed hair.
+2. Guardian (${guardian?.name || "Guardian"}): ${guardianDesc}. The guardian is looking at the child with profound warmth, gentle affection, and a loving smile.
 
-[Scene from story]: ${pagePrompt}
+Scene Action and Environment:
+${pagePrompt}
 
-[Art Style]:
-${STYLE}
-
-[Composition]: Children's book page illustration. Both characters featured in a warm, storybook scene.`;
+Artistic Direction & Style:
+Premium storybook illustration blending high-end animated feature film aesthetics with the painterly warmth of beloved family picture books. Soft golden-hour sunlight pours across the scene, casting warm rim lighting on their hair and clothes. Rich, cozy pastel color palette of warm peach, apricot, blush pink, soft cream, and honey amber. Heartwarming emotional depth, mutually loving interaction, and comfortable composition. Clean and uncluttered, strictly no text, letters, watermarks, frames, or borders.`;
 
     // 참조 이미지 (1쪽, 2쪽일 때 0쪽 표지 이미지 참조)
     let coverRefB64: string | null = null;
