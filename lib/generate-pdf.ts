@@ -48,15 +48,21 @@ async function rotateCounterClockwise(src: string): Promise<string> {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalHeight;
-        canvas.height = img.naturalWidth;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return resolve(src);
-        ctx.translate(0, canvas.height);
-        ctx.rotate(-Math.PI / 2);
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/jpeg", 0.92));
+        // 세로로 찍힌 사진(height > width)만 90도 반시계 회전하여 가로로 정렬
+        if (img.naturalHeight > img.naturalWidth) {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalHeight;
+          canvas.height = img.naturalWidth;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(src);
+          ctx.translate(0, canvas.height);
+          ctx.rotate(-Math.PI / 2);
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        } else {
+          // 이미 가로가 더 긴 사진은 그대로 유지
+          resolve(src);
+        }
       } catch {
         resolve(src);
       }
