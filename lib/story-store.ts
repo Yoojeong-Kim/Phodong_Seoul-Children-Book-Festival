@@ -11,7 +11,7 @@ export async function ensureStoryTables(){
  if(tablesReady)return;
  const db=env.DB;
  await db.batch([
-  db.prepare(`CREATE TABLE IF NOT EXISTS stories (id TEXT PRIMARY KEY, child_name TEXT NOT NULL, question TEXT NOT NULL DEFAULT '', answer TEXT NOT NULL DEFAULT '', title TEXT NOT NULL, summary TEXT NOT NULL, pages_json TEXT NOT NULL, characters_json TEXT DEFAULT '[]', status TEXT NOT NULL DEFAULT 'generating', created_at INTEGER NOT NULL)`),
+  db.prepare(`CREATE TABLE IF NOT EXISTS stories (id TEXT PRIMARY KEY, child_name TEXT NOT NULL, question TEXT NOT NULL DEFAULT '', answer TEXT NOT NULL DEFAULT '', genre TEXT NOT NULL DEFAULT '', object_name TEXT NOT NULL DEFAULT '', title TEXT NOT NULL, summary TEXT NOT NULL, pages_json TEXT NOT NULL, characters_json TEXT DEFAULT '[]', guardian_contact_name TEXT DEFAULT '', guardian_phone TEXT DEFAULT '', guardian_email TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'generating', created_at INTEGER NOT NULL)`),
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_stories_status_created ON stories(status, created_at DESC)`),
   db.prepare(`CREATE TABLE IF NOT EXISTS image_slots (slot INTEGER PRIMARY KEY, story_id TEXT, page INTEGER, locked_until INTEGER NOT NULL DEFAULT 0)`),
   // 슬롯 6개: 5팀 동시 × 3페이지를 여유 있게 처리
@@ -20,14 +20,6 @@ export async function ensureStoryTables(){
   db.prepare(`CREATE TABLE IF NOT EXISTS story_images (key TEXT PRIMARY KEY, b64 TEXT NOT NULL, created_at INTEGER NOT NULL)`),
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_story_images_key ON story_images(key)`)
  ]);
- try{await db.prepare("ALTER TABLE stories ADD COLUMN characters_json TEXT DEFAULT '[]'").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN question TEXT NOT NULL DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN answer TEXT NOT NULL DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN genre TEXT NOT NULL DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN object_name TEXT NOT NULL DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_contact_name TEXT DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_phone TEXT DEFAULT ''").run();}catch{}
- try{await db.prepare("ALTER TABLE stories ADD COLUMN guardian_email TEXT DEFAULT ''").run();}catch{}
  tablesReady=true;
 }
 export function rowToStory(row:any):StoryRecord{

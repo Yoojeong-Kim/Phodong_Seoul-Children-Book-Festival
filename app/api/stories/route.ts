@@ -289,10 +289,19 @@ export async function POST(req:Request){
     };
   }));
 
+  // DB 저장용 캐릭터 데이터: 무거운 base64는 제거하고 URL만 보관 (D1 2MB 행 크기 제한 및 Worker 128MB 메모리 초과 완전 방지)
+  const dbCharacters = storedCharacters.map((c:any)=>({
+    name: c.name,
+    role: c.role,
+    appearance: c.appearance,
+    photo: "", // DB 저장 시 빈 문자열로 처리하여 수십 MB 메모리 폭발 방지
+    photo_url: c.photo_url,
+  }));
+
   try{
-   await env.DB.prepare("INSERT INTO stories (id,child_name,question,answer,genre,object_name,title,summary,pages_json,characters_json,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,'generating',?)").bind(id,childName,question,answer,question,answer,generated.title,generated.summary,JSON.stringify(generated.pages),JSON.stringify(storedCharacters),now).run();
+   await env.DB.prepare("INSERT INTO stories (id,child_name,question,answer,genre,object_name,title,summary,pages_json,characters_json,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,'generating',?)").bind(id,childName,question,answer,question,answer,generated.title,generated.summary,JSON.stringify(generated.pages),JSON.stringify(dbCharacters),now).run();
   }catch{
-   await env.DB.prepare("INSERT INTO stories (id,child_name,question,answer,title,summary,pages_json,characters_json,status,created_at) VALUES (?,?,?,?,?,?,?,?,'generating',?)").bind(id,childName,question,answer,generated.title,generated.summary,JSON.stringify(generated.pages),JSON.stringify(storedCharacters),now).run();
+   await env.DB.prepare("INSERT INTO stories (id,child_name,question,answer,title,summary,pages_json,characters_json,status,created_at) VALUES (?,?,?,?,?,?,?,?,'generating',?)").bind(id,childName,question,answer,generated.title,generated.summary,JSON.stringify(generated.pages),JSON.stringify(dbCharacters),now).run();
   }
 
   return Response.json({story:{id,child_name:childName,question,answer,title:generated.title,summary:generated.summary,pages:generated.pages,characters:storedCharacters,status:"generating",created_at:now}});
