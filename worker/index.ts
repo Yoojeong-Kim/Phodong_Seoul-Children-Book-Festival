@@ -34,6 +34,13 @@ const worker = {
         process.env.OPENAI_API_KEY = rawEnv.OPENAI_API_KEY;
       }
     }
+    if (rawEnv.GEMINI_API_KEY || rawEnv.GOOGLE_API_KEY) {
+      const gApiKey = rawEnv.GEMINI_API_KEY || rawEnv.GOOGLE_API_KEY;
+      (globalThis as any).GEMINI_API_KEY = gApiKey;
+      if (typeof process !== "undefined" && process.env) {
+        process.env.GEMINI_API_KEY = gApiKey;
+      }
+    }
 
     const url = new URL(request.url);
 

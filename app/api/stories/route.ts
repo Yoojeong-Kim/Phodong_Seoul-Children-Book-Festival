@@ -251,7 +251,7 @@ export async function POST(req:Request){
   }
 
   // 2순위: OpenAI (Gemini 키가 아예 없을 때만)
-  if(!generated&&oKey){
+  if(!generated && !gKey && oKey){
     stage="openai_story";
     const response=await openAIFetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${oKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:STORY_SYSTEM_PROMPT},{role:"user",content:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo,detail:"low"}}))]}],response_format:{type:"json_schema",json_schema:{name:"phodong_story",strict:true,schema:storySchema}},max_tokens:4096})});
     if(!response.ok){
