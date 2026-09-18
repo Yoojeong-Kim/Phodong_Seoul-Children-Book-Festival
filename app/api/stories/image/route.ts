@@ -2,50 +2,71 @@ import { env } from "cloudflare:workers";
 import { ensureStoryTables, geminiKey, openAIKey, rowToStory } from "../../../../lib/story-store";
 
 async function generateWithGoogleImagen(apiKey: string, prompt: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        aspectRatio: "1:1",
-        personGeneration: "ALLOW_ALL",
-        outputMimeType: "image/png"
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
+
+  let modelsToTry = ["imagen-3.0-generate-002", "imagen-3.0-generate", "imagen-3.5-generate", "imagen-3"];
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
+    const listData = await listRes.json() as any;
+    if (Array.isArray(listData?.models)) {
+      const activeImageModels = listData.models
+        .filter((m: any) => m.name.toLowerCase().includes("imagen"))
+        .map((m: any) => m.name.replace(/^models\//, ""));
+      if (activeImageModels.length > 0) {
+        modelsToTry = [...activeImageModels, ...modelsToTry].filter((v, i, a) => a.indexOf(v) === i);
       }
-    })
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.warn("imagen_generate_failed, retrying without personGeneration", res.status, errText.slice(0, 200));
-    const retryRes = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "1:1",
-          outputMimeType: "image/png"
-        }
-      })
-    });
-    if (!retryRes.ok) {
-      const retryErr = await retryRes.text();
-      throw new Error(`Google Imagen API 오류 ${retryRes.status}: ${retryErr.slice(0, 150)}`);
     }
-    const data = await retryRes.json() as any;
-    const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!b64) throw new Error("Imagen 이미지 데이터 없음");
-    return b64;
-  }
+  } catch {}
 
-  const data = await res.json() as any;
-  const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-  if (!b64) throw new Error("Imagen 이미지 데이터 없음");
-  return b64;
+  for (const model of modelsToTry) {
+    for (const ver of ["v1beta", "v1"]) {
+      const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:predict?key=${cleanKey}`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instances: [{ prompt }],
+            parameters: {
+              sampleCount: 1,
+              aspectRatio: "1:1",
+              personGeneration: "ALLOW_ALL",
+              outputMimeType: "image/png"
+            }
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json() as any;
+          const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+          if (b64) return b64;
+        }
+
+        // Retry without personGeneration
+        const retryRes = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instances: [{ prompt }],
+            parameters: {
+              sampleCount: 1,
+              aspectRatio: "1:1",
+              outputMimeType: "image/png"
+            }
+          })
+        });
+
+        if (retryRes.ok) {
+          const data = await retryRes.json() as any;
+          const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+          if (b64) return b64;
+        }
+      } catch (e) {
+        console.warn(`imagen_${model}_${ver}_failed`, e);
+      }
+    }
+  }
+  throw new Error("Google Imagen 이미지 생성 실패");
 }
 
 export async function POST(req:Request){

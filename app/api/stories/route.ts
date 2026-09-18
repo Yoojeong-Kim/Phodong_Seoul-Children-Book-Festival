@@ -40,7 +40,8 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
   const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
 
   // 1. First probe available models using ListModels to verify key and get active model list
-  let targetModel = "gemini-1.5-flash";
+  let targetModel = "gemini-3.6-flash";
+  let available: string[] = [];
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
     const listData = await listRes.json() as any;
@@ -50,11 +51,11 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
       throw new Error(`Google API 오류: ${listData.error.message || JSON.stringify(listData.error)}`);
     }
     if (Array.isArray(listData?.models)) {
-      const available = listData.models
+      available = listData.models
         .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
         .map((m: any) => m.name.replace(/^models\//, ""));
       console.log("[Gemini Available Models]:", available.join(", "));
-      const preferred = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"];
+      const preferred = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
       for (const pref of preferred) {
         if (available.includes(pref)) {
           targetModel = pref;
@@ -106,7 +107,15 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
     }
   };
 
-  const candidateModels = [targetModel, "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-pro"].filter((v, i, a) => a.indexOf(v) === i);
+  const candidateModels = [
+    "gemini-3.6-flash",
+    targetModel,
+    ...available.filter(m => m.includes("flash")),
+    ...available,
+    "gemini-3.5-flash",
+    "gemini-2.5-flash"
+  ].filter((v, i, a) => a.indexOf(v) === i && v);
+
   const versions = ["v1beta", "v1"];
   let lastError: any = null;
 
