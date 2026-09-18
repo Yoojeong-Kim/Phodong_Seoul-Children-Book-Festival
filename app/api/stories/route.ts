@@ -221,6 +221,7 @@ export async function POST(req:Request){
   if(characters.some((v:any)=>!v.name||!v.photo))return Response.json({error:"이름과 사진을 모두 입력해 줘."},{status:400});
   if(characters.some((v:any)=>!/^data:image\/(jpeg|png|webp|gif);base64,/i.test(v.photo)))return Response.json({error:"사진을 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘."},{status:400});
 
+  const childName = characters.map((v:any)=>v.name).join(" · ");
   const gKey=geminiKey();
   const oKey=openAIKey();
 
