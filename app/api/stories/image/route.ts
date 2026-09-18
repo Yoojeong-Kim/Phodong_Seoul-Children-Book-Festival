@@ -18,20 +18,21 @@ async function generateWithGoogleImagen(apiKey: string, prompt: string): Promise
     }
   } catch {}
 
+  let lastError = "";
   for (const model of modelsToTry) {
     for (const ver of ["v1beta", "v1"]) {
       const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:predict?key=${cleanKey}`;
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": cleanKey
+          },
           body: JSON.stringify({
             instances: [{ prompt }],
             parameters: {
-              sampleCount: 1,
-              aspectRatio: "1:1",
-              personGeneration: "ALLOW_ALL",
-              outputMimeType: "image/png"
+              sampleCount: 1
             }
           })
         });
@@ -40,33 +41,18 @@ async function generateWithGoogleImagen(apiKey: string, prompt: string): Promise
           const data = await res.json() as any;
           const b64 = data.predictions?.[0]?.bytesBase64Encoded;
           if (b64) return b64;
+        } else {
+          const errText = await res.text();
+          console.warn(`[Google Imagen ${ver} ${model} Error]:`, res.status, errText.slice(0, 200));
+          lastError = `${res.status}: ${errText.slice(0, 150)}`;
         }
-
-        // Retry without personGeneration
-        const retryRes = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            instances: [{ prompt }],
-            parameters: {
-              sampleCount: 1,
-              aspectRatio: "1:1",
-              outputMimeType: "image/png"
-            }
-          })
-        });
-
-        if (retryRes.ok) {
-          const data = await retryRes.json() as any;
-          const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-          if (b64) return b64;
-        }
-      } catch (e) {
-        console.warn(`imagen_${model}_${ver}_failed`, e);
+      } catch (e: any) {
+        console.warn(`[Google Imagen Exception ${ver} ${model}]:`, e?.message);
+        lastError = e?.message || String(e);
       }
     }
   }
-  throw new Error("Google Imagen 이미지 생성 실패");
+  throw new Error(`Google Imagen 이미지 생성 실패 (${lastError})`);
 }
 
 export async function POST(req:Request){
@@ -148,12 +134,12 @@ ${STYLE}
     try{
       b64=await generateWithGoogleImagen(gKey,fullPrompt.substring(0,2000));
     }catch(gErr:any){
-      console.warn("google_imagen_failed, checking openai fallback",gErr?.message);
+      console.warn("google_imagen_failed, checking fallback:",gErr?.message);
       if(!oKey)throw gErr;
     }
   }
 
-  // 2순위: OpenAI 폴백
+  // 2순위: OpenAI 폴백 (response_format 제거하여 호환성 보장)
   if(!b64&&oKey){
     let response:Response;
     if (page > 0) {
@@ -170,7 +156,7 @@ ${STYLE}
       form.append("prompt", fullPrompt.substring(0,4000));
       form.append("size", "1024x1024");
       form.append("quality", "medium");
-      form.append("response_format", "b64_json");
+      form.append("output_format", "png");
       form.append("image", new Blob([bytes], {type:"image/png"}), "reference.png");
 
       response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -186,18 +172,27 @@ ${STYLE}
           model: "gpt-image-2",
           prompt: fullPrompt.substring(0,4000),
           size: "1024x1024",
-          quality: "medium",
-          response_format: "b64_json"
+          quality: "medium"
         })
       });
     }
 
-    if(!response.ok){const detail=await response.text();console.error("image_api",response.status,detail.slice(0,500));throw new Error(`이미지 API 오류 ${response.status}`);}
+    if(!response.ok){
+      const detail=await response.text();
+      console.error("image_api",response.status,detail.slice(0,500));
+      throw new Error(`이미지 API 오류 ${response.status}`);
+    }
     const data=await response.json() as any;
     b64=data.data?.[0]?.b64_json;
     if(!b64&&data.data?.[0]?.url){
       const res=await fetch(data.data[0].url);
-      if(res.ok){const buf=await res.arrayBuffer();let binary='';const bytes=new Uint8Array(buf);for(let i=0;i<bytes.byteLength;i++){binary+=String.fromCharCode(bytes[i]);}b64=btoa(binary);}
+      if(res.ok){
+        const buf=await res.arrayBuffer();
+        let binary='';
+        const byteArr=new Uint8Array(buf);
+        for(let i=0;i<byteArr.byteLength;i++){binary+=String.fromCharCode(byteArr[i]);}
+        b64=btoa(binary);
+      }
     }
   }
 
