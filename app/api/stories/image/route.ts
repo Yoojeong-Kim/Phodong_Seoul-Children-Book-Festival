@@ -4,12 +4,12 @@ import { ensureStoryTables, geminiKey, openAIKey, rowToStory } from "../../../..
 async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, refB64?: string | null): Promise<string> {
   const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
 
-  // 1. 모델 자동 탐색 (최고화질 스튜디오급 모델 gemini-3-pro-image 우선)
+  // 1. 모델 자동 탐색 (행사 현장 쾌속 생성을 위해 초고속 Flash 모델 최우선)
   let candidateModels = [
-    "gemini-3-pro-image",
     "gemini-3.1-flash-image",
     "gemini-2.5-flash-image",
     "gemini-3.0-flash-image",
+    "gemini-3-pro-image",
     "gemini-2.0-flash-exp-image-generation",
   ];
 
@@ -22,10 +22,10 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
         .map((m: any) => m.name.replace(/^models\//, ""));
       if (discoveredImageModels.length > 0) {
         console.log("[Gemini Image Discovered Models]:", discoveredImageModels.join(", "));
-        // gemini-3-pro-image가 있으면 최우선
-        const proModels = discoveredImageModels.filter((m: string) => m.includes("pro"));
-        const otherModels = discoveredImageModels.filter((m: string) => !m.includes("pro"));
-        candidateModels = [...proModels, ...candidateModels, ...otherModels].filter((v, i, a) => a.indexOf(v) === i);
+        // flash 모델을 최우선으로 정렬 (속도 극대화)
+        const flashModels = discoveredImageModels.filter((m: string) => m.includes("flash"));
+        const otherModels = discoveredImageModels.filter((m: string) => !m.includes("flash"));
+        candidateModels = [...flashModels, ...candidateModels, ...otherModels].filter((v, i, a) => a.indexOf(v) === i);
       }
     }
   } catch (e: any) {
@@ -36,8 +36,9 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
   let lastError = "";
 
-  const imageConfig2K = {
-    imageSize: "2k",
+  // 1K 표준 해상도 (2~3초 초고속 생성 + D1 2MB 행 한도 완벽 준수)
+  const imageConfigFast = {
+    imageSize: "1k",
     aspectRatio: "1:1"
   };
 
@@ -48,7 +49,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
       if (refB64) {
         payloads.push({
-          desc: "with-ref-2k-text-image",
+          desc: "with-ref-fast-text-image",
           body: {
             contents: [{
               role: "user",
@@ -59,7 +60,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
             }],
             generationConfig: {
               responseModalities: ["TEXT", "IMAGE"],
-              imageConfig: imageConfig2K
+              imageConfig: imageConfigFast
             }
           }
         });
@@ -80,9 +81,9 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
         });
       }
 
-      // 텍스트 전용 (2K 고해상도 우선 시도)
+      // 텍스트 전용 (Flash 1K 초고속 규격)
       payloads.push({
-        desc: "text-only-2k",
+        desc: "text-only-fast",
         body: {
           contents: [{
             role: "user",
@@ -90,7 +91,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
           }],
           generationConfig: {
             responseModalities: ["TEXT", "IMAGE"],
-            imageConfig: imageConfig2K
+            imageConfig: imageConfigFast
           }
         }
       });
