@@ -416,9 +416,8 @@ const styles=`
 .polaroid-card{margin:0;background:#ffffff;padding:14px 14px 22px;border-radius:20px;box-shadow:0 14px 38px rgba(90,40,65,0.16);display:flex;flex-direction:column;align-items:center;width:min(280px,44vw);transition:transform .25s ease;border:1px solid #f6e6ee}
 .polaroid-card:hover{transform:rotate(0deg) scale(1.04);box-shadow:0 18px 46px rgba(90,40,65,0.22);z-index:2}
 .polaroid-card.tilt-left{transform:rotate(-3.5deg)}
-.polaroid-card.tilt-right{transform:rotate(3.5deg)}
-.polaroid-photo-frame{width:100%;aspect-ratio:1/1.05;background:#faf3f6;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 10px rgba(0,0,0,0.06)}
-.polaroid-photo-frame img{width:100%;height:100%;object-fit:cover;display:block}
+.polaroid-photo-frame{width:100%;aspect-ratio:1/1;background:#faf3f6;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 10px rgba(0,0,0,0.06);position:relative}
+.polaroid-photo-frame img{width:100%;height:100%;object-fit:cover;display:block;transform:rotate(-90deg)}
 .polaroid-card figcaption{margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .polaroid-card figcaption strong{font-size:clamp(16px,1.8vw,20px);color:#3d2940;font-weight:800}
 .polaroid-card figcaption span{font-size:clamp(12px,1.2vw,14px);color:#946e7c;font-weight:600}

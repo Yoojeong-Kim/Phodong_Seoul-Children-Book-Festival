@@ -41,6 +41,31 @@ function imgTag(url: string | undefined, alt: string) {
   return `<img src="${esc(url)}" alt="${esc(alt)}" crossorigin="anonymous" />`;
 }
 
+async function rotateCounterClockwise(src: string): Promise<string> {
+  if (!src) return '';
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalHeight;
+        canvas.height = img.naturalWidth;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(src);
+        ctx.translate(0, canvas.height);
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
+      } catch {
+        resolve(src);
+      }
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+}
+
 export async function downloadStoryPdf(story: PdfStoryData) {
   const container = document.createElement('div');
   container.style.position = 'absolute';
@@ -103,9 +128,13 @@ export async function downloadStoryPdf(story: PdfStoryData) {
 
   let polaroidsHtml = '';
   if (child || guardian) {
+    const [childSrc, guardianSrc] = await Promise.all([
+      child ? rotateCounterClockwise(child.photo || child.photo_url || '') : Promise.resolve(''),
+      guardian ? rotateCounterClockwise(guardian.photo || guardian.photo_url || '') : Promise.resolve('')
+    ]);
+
     polaroidsHtml = `<div class="pdf-polaroid-gallery">`;
     if (child) {
-      const childSrc = child.photo || child.photo_url || '';
       polaroidsHtml += `
         <figure class="pdf-polaroid-card pdf-tilt-left">
           <div class="pdf-photo-box">
@@ -119,7 +148,6 @@ export async function downloadStoryPdf(story: PdfStoryData) {
       `;
     }
     if (guardian) {
-      const guardianSrc = guardian.photo || guardian.photo_url || '';
       polaroidsHtml += `
         <figure class="pdf-polaroid-card pdf-tilt-right">
           <div class="pdf-photo-box">
