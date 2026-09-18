@@ -173,12 +173,14 @@ export async function POST(req:Request){
   if(characters.some((v:any)=>!v.name||!v.photo))return Response.json({error:"이름과 사진을 모두 입력해 줘."},{status:400});
   if(characters.some((v:any)=>!/^data:image\/(jpeg|png|webp|gif);base64,/i.test(v.photo)))return Response.json({error:"사진을 읽기 어려워. 다시 찍거나 다른 사진을 골라 줘."},{status:400});
 
-  const childName=characters.map((v:any)=>v.name).join(" · ");
   const gKey=geminiKey();
   const oKey=openAIKey();
 
+  console.log("[Key Check] gKey present:", !!gKey, "oKey present:", !!oKey);
+
   if(!gKey&&!oKey){
-    return Response.json({error:"API 키가 설정되지 않았어. Cloudflare 대시보드에서 GEMINI_API_KEY를 확인해 줘."},{status:500});
+    const keys = Object.keys((env as any) || {}).join(", ");
+    return Response.json({error:`API 키가 설정되지 않았어. (등록된 env 키 목록: [${keys}])`},{status:500});
   }
 
   const userText=storyInput({characters,question,answer});
@@ -190,15 +192,16 @@ export async function POST(req:Request){
       stage="gemini_story";
       generated=await generateStoryWithGemini(gKey,userText,characters);
     }catch(geminiErr:any){
-      console.warn("gemini_story_failed, checking fallback",geminiErr?.message);
+      console.error("gemini_story_failed:", geminiErr?.message || String(geminiErr));
       if(geminiErr?.message==="SAFETY_BLOCKED"){
         return Response.json({error:"다른 사진이나 이야기로 다시 시도해 줘."},{status:400});
       }
-      if(!oKey)throw geminiErr;
+      // Gemini 에러가 발생했고 OpenAI 키가 크레딧 소진 상태라면 Gemini 에러를 사용자에게 직접 보여줌
+      throw geminiErr;
     }
   }
 
-  // 2순위: OpenAI 폴백
+  // 2순위: OpenAI (Gemini 키가 아예 없을 때만)
   if(!generated&&oKey){
     stage="openai_story";
     const response=await openAIFetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${oKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:STORY_SYSTEM_PROMPT},{role:"user",content:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo,detail:"low"}}))]}],response_format:{type:"json_schema",json_schema:{name:"phodong_story",strict:true,schema:storySchema}},max_tokens:4096})});
