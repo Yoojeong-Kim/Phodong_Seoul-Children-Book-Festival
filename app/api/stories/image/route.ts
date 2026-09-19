@@ -19,8 +19,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
     aspectRatio: "1:1"
   };
 
-  for (const model of candidateModels) {
-    for (const ver of ["v1beta", "v1"]) {
+
   // 참조 이미지가 있는 경우(1쪽, 2쪽)와 텍스트 전용(표지 등) 페이로드 준비
   const payloadsStr: string[] = [];
   if (refB64) {
