@@ -211,7 +211,7 @@ export default function Home(){
     try{
       await downloadStoryPdf(s as any);
     }catch(err){
-      alert("PDF를 다운로드하는 중 오류가 발생했습니다.");
+      alert("PDF를 다운로드하는 중 오류가 발생했습니다: " + (err instanceof Error ? err.message : String(err)));
     }finally{
       setPdfGeneratingId(null);
     }
