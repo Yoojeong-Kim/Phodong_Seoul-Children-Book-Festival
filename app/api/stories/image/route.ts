@@ -7,10 +7,9 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
   // 1. 모델 자동 탐색 (행사 현장 쾌속 생성을 위해 초고속 Flash 모델 최우선)
   let candidateModels = [
     "gemini-3.1-flash-image",
-    "gemini-2.5-flash-image",
     "gemini-3.0-flash-image",
     "gemini-3-pro-image",
-    "gemini-2.0-flash-exp-image-generation",
+    "gemini-2.5-flash-image",
   ];
 
   console.log("[Gemini Image Trying Candidate Models]:", candidateModels.join(", "));

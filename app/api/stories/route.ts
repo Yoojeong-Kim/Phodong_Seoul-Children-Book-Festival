@@ -67,22 +67,20 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
       }
     ],
     generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: geminiStorySchema,
-      temperature: 0.7
+      responseMimeType: "application/json"
     }
   };
 
   const candidateModels = [
     "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
+    "gemini-3.5-flash-lite"
   ];
 
   const versions = ["v1beta", "v1"];
-  let lastError: any = null;
+  const errorLogs: string[] = [];
 
   for (const ver of versions) {
     for (const model of candidateModels) {
@@ -97,7 +95,7 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
         if (!res.ok) {
           const errText = await res.text();
           console.error(`[Gemini Error ${ver} ${model}]:`, res.status, errText);
-          lastError = new Error(`Gemini (${model} ${ver}) ${res.status}: ${errText.slice(0, 180)}`);
+          errorLogs.push(`${model}(${ver} ${res.status}): ${errText.slice(0, 160)}`);
           continue;
         }
 
@@ -116,11 +114,11 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
         throw new Error("Gemini 응답 형식 불일치");
       } catch (err: any) {
         if (err?.message === "SAFETY_BLOCKED") throw err;
-        lastError = err;
+        errorLogs.push(`${model}(${ver}): ${err?.message || String(err)}`);
       }
     }
   }
-  throw lastError || new Error("Gemini 동화 생성에 실패했어.");
+  throw new Error(`Google Gemini 모델 호출 실패: ${errorLogs.slice(0, 3).join(" | ")}`);
 }
 
 function outputText(data:any){for(const item of data.output||[])for(const content of item.content||[])if(content.type==="output_text")return content.text;throw new Error("동화 응답을 읽지 못했어.")}
