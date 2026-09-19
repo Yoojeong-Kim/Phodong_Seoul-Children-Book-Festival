@@ -32,8 +32,9 @@ export interface InitialItem {
   reason: string;
 }
 
-function esc(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function esc(s: string | undefined | null) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function imgTag(url: string | undefined, alt: string) {
@@ -490,6 +491,6 @@ export async function downloadStoryPdf(story: PdfStoryData) {
 
   document.body.removeChild(container);
 
-  const safeName = story.title.replace(/\s+/g, '_') || 'story';
+  const safeName = (story.title || '').replace(/\s+/g, '_') || 'story';
   doc.save(`${safeName}_동화.pdf`);
 }
