@@ -81,6 +81,8 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
 
   const versions = ["v1beta", "v1"];
   const errorLogs: string[] = [];
+  
+  const bodyString = JSON.stringify(requestBody);
 
   for (const ver of versions) {
     for (const model of candidateModels) {
@@ -89,7 +91,7 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody)
+          body: bodyString
         });
 
         if (!res.ok) {

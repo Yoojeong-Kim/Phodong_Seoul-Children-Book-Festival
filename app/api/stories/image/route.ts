@@ -24,79 +24,66 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
   for (const model of candidateModels) {
     for (const ver of ["v1beta", "v1"]) {
-      // 참조 이미지가 있는 경우(1쪽, 2쪽)와 텍스트 전용(표지 등) 페이로드 준비
-      const payloads: Array<{ desc: string; body: any }> = [];
-
-      if (refB64) {
-        payloads.push({
-          desc: "with-ref-fast-text-image",
-          body: {
-            contents: [{
-              role: "user",
-              parts: [
-                { inlineData: { mimeType: "image/png", data: refB64 } },
-                { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
-              ]
-            }],
-            generationConfig: {
-              responseModalities: ["TEXT", "IMAGE"],
-              imageConfig: imageConfigFast
-            }
-          }
-        });
-        payloads.push({
-          desc: "with-ref-standard-text-image",
-          body: {
-            contents: [{
-              role: "user",
-              parts: [
-                { inlineData: { mimeType: "image/png", data: refB64 } },
-                { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
-              ]
-            }],
-            generationConfig: {
-              responseModalities: ["TEXT", "IMAGE"]
-            }
-          }
-        });
+  // 참조 이미지가 있는 경우(1쪽, 2쪽)와 텍스트 전용(표지 등) 페이로드 준비
+  const payloadsStr: string[] = [];
+  if (refB64) {
+    payloadsStr.push(JSON.stringify({
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: "image/png", data: refB64 } },
+          { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
+        ]
+      }],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: imageConfigFast
       }
+    }));
+    payloadsStr.push(JSON.stringify({
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: "image/png", data: refB64 } },
+          { text: `[Maintain consistent character appearance, faces, hair, and art style with the reference cover image attached above]\n\n${prompt}` }
+        ]
+      }],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"]
+      }
+    }));
+  }
 
-      // 텍스트 전용 (Flash 1K 초고속 규격)
-      payloads.push({
-        desc: "text-only-fast",
-        body: {
-          contents: [{
-            role: "user",
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-            imageConfig: imageConfigFast
-          }
-        }
-      });
+  payloadsStr.push(JSON.stringify({
+    contents: [{
+      role: "user",
+      parts: [{ text: prompt }]
+    }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      imageConfig: imageConfigFast
+    }
+  }));
 
-      // 표준 해상도 폴백
-      payloads.push({
-        desc: "text-only-standard",
-        body: {
-          contents: [{
-            role: "user",
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
-          }
-        }
-      });
+  payloadsStr.push(JSON.stringify({
+    contents: [{
+      role: "user",
+      parts: [{ text: prompt }]
+    }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"]
+    }
+  }));
 
-      for (const p of payloads) {
+  for (const model of candidateModels) {
+    for (const ver of ["v1beta", "v1"]) {
+      for (const pStr of payloadsStr) {
         const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${cleanKey}`;
         try {
           let res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(p.body)
+            body: pStr
           });
 
           // 일시적 Rate Limit(429) 또는 서버 과부하(503) 시 3초 대기 후 1회 자동 재시도
