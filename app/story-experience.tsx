@@ -38,25 +38,44 @@ function BookPage({story,page}:{story:StoryData;page:number}){
  </>;
 }
 
-function PolaroidImage({src, alt}:{src:string; alt:string}){
-  const [rotated, setRotated] = useState(false);
-
-  const check = (img: HTMLImageElement | null) => {
-    if (img && img.naturalWidth && img.naturalHeight) {
-      // 세로로 찍힌 사진(height > width)만 90도 반시계 회전하여 가로가 더 길게 정렬
-      setRotated(img.naturalHeight > img.naturalWidth);
-    }
-  };
+function PolaroidImage({ src, alt }: { src: string, alt: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   return (
-    <img 
-      src={src} 
-      alt={alt}
-      className={rotated ? "rotate-ccw" : ""}
-      onLoad={(e) => check(e.currentTarget)}
-      ref={(el) => check(el)}
-      onError={(e)=>{(e.currentTarget as HTMLImageElement).src = "/phodong-sleepy.png"}}
-    />
+    <div style={{width:'100%', height:'100%'}}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <img
+        src={src}
+        alt={alt}
+        style={{ display: 'none' }}
+        crossOrigin="anonymous"
+        onError={(e) => {
+           // fallback logic if needed
+        }}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+
+          const { naturalWidth: w, naturalHeight: h } = img;
+          const isPortrait = h > w;
+
+          if (isPortrait) {
+            canvas.width = h;
+            canvas.height = w;
+            ctx.translate(0, w);
+            ctx.rotate(-Math.PI / 2);
+            ctx.drawImage(img, 0, 0);
+          } else {
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0);
+          }
+        }}
+      />
+    </div>
   );
 }
 
