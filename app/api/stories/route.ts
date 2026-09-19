@@ -72,14 +72,10 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
   };
 
   const candidateModels = [
-    "gemini-3.6-flash",
-    "gemini-3.8-flash",
-    "gemini-3.7-flash",
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite"
+    "gemini-3.6-flash"
   ];
 
-  const versions = ["v1beta", "v1"];
+  const versions = ["v1beta"];
   const errorLogs: string[] = [];
   
   const bodyString = JSON.stringify(requestBody);
@@ -98,6 +94,9 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
           const errText = await res.text();
           console.error(`[Gemini Error ${ver} ${model}]:`, res.status, errText);
           errorLogs.push(`${model}(${ver} ${res.status}): ${errText.slice(0, 160)}`);
+          if (res.status === 400 && errText.includes("User location is not supported")) {
+            throw new Error("LOCATION_NOT_SUPPORTED");
+          }
           continue;
         }
 
@@ -115,7 +114,7 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
         }
         throw new Error("Gemini 응답 형식 불일치");
       } catch (err: any) {
-        if (err?.message === "SAFETY_BLOCKED") throw err;
+        if (err?.message === "SAFETY_BLOCKED" || err?.message === "LOCATION_NOT_SUPPORTED") throw err;
         errorLogs.push(`${model}(${ver}): ${err?.message || String(err)}`);
       }
     }

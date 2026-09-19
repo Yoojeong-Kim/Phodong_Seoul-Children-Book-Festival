@@ -6,10 +6,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
 
   // 1. 모델 자동 탐색 (행사 현장 쾌속 생성을 위해 초고속 Flash 모델 최우선)
   let candidateModels = [
-    "gemini-3.1-flash-image",
-    "gemini-3.0-flash-image",
-    "gemini-3-pro-image",
-    "gemini-2.5-flash-image",
+    "gemini-3.1-flash-image"
   ];
 
   console.log("[Gemini Image Trying Candidate Models]:", candidateModels.join(", "));
@@ -76,7 +73,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
   }));
 
   for (const model of candidateModels) {
-    for (const ver of ["v1beta", "v1"]) {
+    for (const ver of ["v1beta"]) {
       for (const pStr of payloadsStr) {
         const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${cleanKey}`;
         try {
@@ -93,7 +90,7 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
             res = await fetch(url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(p.body)
+              body: pStr
             });
           }
 
@@ -106,38 +103,24 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
             }
             const imgPart = candidate?.content?.parts?.find((part: any) => part.inlineData?.data);
             if (imgPart?.inlineData?.data) {
-              console.log(`[Gemini Image Success]: ${ver}/${model} (${p.desc}) 성공!`);
+              console.log(`[Gemini Image Success]: ${ver}/${model} 성공!`);
               return imgPart.inlineData.data;
             }
           } else {
             const errText = await res.text();
-            console.warn(`[Gemini Image ${ver} ${model} (${p.desc}) Error]:`, res.status, errText.slice(0, 200));
+            console.warn(`[Gemini Image ${ver} ${model} Error]:`, res.status, errText.slice(0, 200));
             lastError = `${res.status}: ${errText.slice(0, 150)}`;
+            if (res.status === 400 && errText.includes("User location is not supported")) {
+              throw new Error("LOCATION_NOT_SUPPORTED");
+            }
           }
         } catch (callErr: any) {
-          console.warn(`[Gemini Image Exception ${ver} ${model} (${p.desc})]:`, callErr?.message);
+          console.warn(`[Gemini Image Exception ${ver} ${model}]:`, callErr?.message);
           lastError = callErr?.message || String(callErr);
+          if (lastError.includes("LOCATION_NOT_SUPPORTED")) throw callErr;
         }
       }
     }
-  }
-
-  // 혹시라도 구글 계정에 predict 엔드포인트가 활성화되어 있는 경우를 위한 최종 폴백
-  const predictModels = ["imagen-3.0-generate-002", "imagen-3.0-generate", "imagen-3"];
-  for (const pModel of predictModels) {
-    try {
-      const pUrl = `https://generativelanguage.googleapis.com/v1beta/models/${pModel}:predict?key=${cleanKey}`;
-      const pRes = await fetch(pUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instances: [{ prompt }], parameters: { sampleCount: 1 } })
-      });
-      if (pRes.ok) {
-        const pData = await pRes.json() as any;
-        const pB64 = pData.predictions?.[0]?.bytesBase64Encoded;
-        if (pB64) return pB64;
-      }
-    } catch {}
   }
 
   throw new Error(`Google Gemini 이미지 생성 실패: ${lastError}`);
