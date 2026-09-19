@@ -39,40 +39,6 @@ const geminiStorySchema = {
 async function generateStoryWithGemini(apiKey: string, userText: string, characters: any[]) {
   const cleanKey = apiKey.trim().replace(/^["']|["']$/g, "").trim();
 
-  // 1. First probe available models using ListModels to verify key and get active model list
-  let targetModel = "gemini-3.6-flash";
-  let available: string[] = [];
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
-    const listData = await listRes.json() as any;
-    console.log("[Gemini ListModels Status]:", listRes.status);
-    if (listData?.error) {
-      console.error("[Gemini ListModels Error]:", JSON.stringify(listData.error));
-      throw new Error(`Google API 오류: ${listData.error.message || JSON.stringify(listData.error)}`);
-    }
-    if (Array.isArray(listData?.models)) {
-      available = listData.models
-        .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-        .map((m: any) => m.name.replace(/^models\//, ""));
-      console.log("[Gemini Available Models]:", available.join(", "));
-      const preferred = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-      for (const pref of preferred) {
-        if (available.includes(pref)) {
-          targetModel = pref;
-          break;
-        }
-      }
-      if (!available.includes(targetModel) && available.length > 0) {
-        targetModel = available[0];
-      }
-    }
-  } catch (probeErr: any) {
-    console.warn("[Gemini Probe Warning]:", probeErr?.message);
-    if (probeErr?.message?.startsWith("Google API 오류:")) throw probeErr;
-  }
-
-  console.log("[Gemini Selected Target Model]:", targetModel);
-
   const imageParts = characters.map((c: any) => {
     const photo = String(c.photo || "");
     const match = photo.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
@@ -109,12 +75,11 @@ async function generateStoryWithGemini(apiKey: string, userText: string, charact
 
   const candidateModels = [
     "gemini-3.6-flash",
-    targetModel,
-    ...available.filter(m => m.includes("flash")),
-    ...available,
     "gemini-3.5-flash",
-    "gemini-2.5-flash"
-  ].filter((v, i, a) => a.indexOf(v) === i && v);
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
+  ];
 
   const versions = ["v1beta", "v1"];
   let lastError: any = null;
@@ -245,13 +210,15 @@ export async function POST(req:Request){
       if(geminiErr?.message==="SAFETY_BLOCKED"){
         return Response.json({error:"다른 사진이나 이야기로 다시 시도해 줘."},{status:400});
       }
-      // Gemini 에러가 발생했고 OpenAI 키가 크레딧 소진 상태라면 Gemini 에러를 사용자에게 직접 보여줌
-      throw geminiErr;
+      if(!oKey){
+        throw geminiErr;
+      }
+      console.warn("[Fallback] Gemini failed, attempting OpenAI (gpt-4o-mini)...");
     }
   }
 
-  // 2순위: OpenAI (Gemini 키가 아예 없을 때만)
-  if(!generated && !gKey && oKey){
+  // 2순위: OpenAI (Gemini 키가 없거나 Gemini 호출 실패 시 자동 백업)
+  if(!generated && oKey){
     stage="openai_story";
     const response=await openAIFetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${oKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:STORY_SYSTEM_PROMPT},{role:"user",content:[{type:"text",text:userText},...characters.map((v:any)=>({type:"image_url",image_url:{url:v.photo,detail:"low"}}))]}],response_format:{type:"json_schema",json_schema:{name:"phodong_story",strict:true,schema:storySchema}},max_tokens:4096})});
     if(!response.ok){

@@ -13,25 +13,6 @@ async function generateWithGoogleGeminiImage(apiKey: string, prompt: string, ref
     "gemini-2.0-flash-exp-image-generation",
   ];
 
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
-    const listData = await listRes.json() as any;
-    if (Array.isArray(listData?.models)) {
-      const discoveredImageModels = listData.models
-        .filter((m: any) => m.name?.toLowerCase().includes("image"))
-        .map((m: any) => m.name.replace(/^models\//, ""));
-      if (discoveredImageModels.length > 0) {
-        console.log("[Gemini Image Discovered Models]:", discoveredImageModels.join(", "));
-        // flash 모델을 최우선으로 정렬 (속도 극대화)
-        const flashModels = discoveredImageModels.filter((m: string) => m.includes("flash"));
-        const otherModels = discoveredImageModels.filter((m: string) => !m.includes("flash"));
-        candidateModels = [...flashModels, ...candidateModels, ...otherModels].filter((v, i, a) => a.indexOf(v) === i);
-      }
-    }
-  } catch (e: any) {
-    console.warn("[Gemini ListModels Warning]:", e?.message);
-  }
-
   console.log("[Gemini Image Trying Candidate Models]:", candidateModels.join(", "));
 
   let lastError = "";
@@ -264,13 +245,13 @@ Premium storybook illustration blending high-end animated feature film aesthetic
         b64 = await generateWithGoogleGeminiImage(gKey, fullPrompt.substring(0, 4000), coverRefB64);
       } catch (gErr: any) {
         console.error("google_gemini_image_failed:", gErr?.message || String(gErr));
-        // 사용자가 구글 키를 설정한 경우, 크레딧 소진된 OpenAI로 가지 않고 구글 에러를 투명하게 표시
-        throw gErr;
+        if (!oKey) throw gErr;
+        console.warn("[Fallback] Google Gemini Image failed, attempting OpenAI (gpt-image-2)...");
       }
     }
 
-    // 2순위: OpenAI 폴백 (Google 키가 아예 없을 때만 실행)
-    if (!b64 && !gKey && oKey) {
+    // 2순위: OpenAI 폴백 (Google 키가 없거나 Google 실패 시 백업)
+    if (!b64 && oKey) {
       let response: Response;
       if (page > 0) {
         if (!coverRefB64) {
